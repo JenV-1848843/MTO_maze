@@ -101,4 +101,11 @@ private:
     
 };
 
+float angleToDutyCycle(int angle) {
+    // Mapping angles for DS with 500us 0° position with 0-180 operation range
+    float pulse_us = 500.0f + (angle * 1500.0f / 180.0f);
+    // Convert to duty cycle % at 50Hz (20000µs period)
+    return (pulse_us / 20000.0f) * 100.0f;
+}
+
 #endif
