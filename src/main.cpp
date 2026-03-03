@@ -4,6 +4,7 @@
 #include <cstdint>
 #include "rpi_pwm.h"
 #include "pi2c.h"
+#include "pid.h"
 
 
 int main() {
@@ -20,17 +21,22 @@ int main() {
     //char adr_2 = 0x69; // AD0 pin naar VCC verbinden op 2e IMU
     Pi2c imu(adr);
     char input[10]; // input buffer for I2C input
-
     // wake up and initialise IMU
     imu.init();
-    std::cout << "starting loop" << std::endl;
+    
+    // Basis voor PID controller (claude)
+    PID pid(1.5f, 0.1f, 0.8f);
+    pid.reset();
+
+    
     // Test loop voor servo bewegingen
+    std::cout << "starting loop" << std::endl;
     for (int i = -20; i < 20; i++){
         int angle = i;
         int offset_x = 43;
         int offset_y = -43;
-        servo_x.setDutyCycle(angleToDutseyCycle(angle, offset_x));
-        servo_y.setDutyCycle(angleToDutseyCycle(angle, offset_y));
+        servo_x.setDutyCycle(angleToDutyCycle(angle, offset_x));
+        servo_y.setDutyCycle(angleToDutyCycle(angle, offset_y));
         std::cout << "Duty cycle at " << angle << "°" << std::endl;
         usleep(200000);
     }
@@ -57,6 +63,24 @@ int main() {
         std::cout << "Gyro Y: " << gy << " °" << std::endl;
         std::cout << "Gyro Z: " << gz << " °" << std::endl;
     }
+
+    bool control_loop = false;
+    if (control_loop){
+        float setpoint = 0.0f;
+        while ((true))
+        {
+            float ball_position = 0.4 /* read from sensor */;
+            float angle = pid.compute(setpoint, ball_position);
+            servo_x.setDutyCycle(angleToDutyCycle(angle, 43));
+
+            usleep(20000); // 50Hz loop to match PWM frequency
+
+        }
+        
+    }
+
+
+
         
    servo_x.stop();
    servo_y.stop();

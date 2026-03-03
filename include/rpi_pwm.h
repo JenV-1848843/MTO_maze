@@ -103,7 +103,7 @@ private:
     
 };
 
-float angleToDutseyCycle(int angle, float angle_offset = 43.0) {
+float angleToDutyCycle(int angle, float angle_offset = 43.0) {
 
     // -90° to +90° mapped to 500us–2500us, neutral at 1500us
     float pulse_us = 1500.0f + ((angle_offset - angle) * (2000.0f / 180.0f));
