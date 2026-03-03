@@ -4,7 +4,6 @@
 #include <cstdint>
 #include "rpi_pwm.h"
 #include "pi2c.h"
-#include "pid.h"
 
 
 int main() {
@@ -23,10 +22,6 @@ int main() {
     char input[10]; // input buffer for I2C input
     // wake up and initialise IMU
     imu.init();
-    
-    // Basis voor PID controller (claude)
-    PID pid(1.5f, 0.1f, 0.8f);
-    pid.reset();
 
     
     // Test loop voor servo bewegingen
@@ -64,20 +59,6 @@ int main() {
         std::cout << "Gyro Z: " << gz << " °" << std::endl;
     }
 
-    bool control_loop = false;
-    if (control_loop){
-        float setpoint = 0.0f;
-        while ((true))
-        {
-            float ball_position = 0.4 /* read from sensor */;
-            float angle = pid.compute(setpoint, ball_position);
-            servo_x.setDutyCycle(angleToDutyCycle(angle, 43));
-
-            usleep(20000); // 50Hz loop to match PWM frequency
-
-        }
-        
-    }
 
 
 
