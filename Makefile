@@ -9,7 +9,7 @@ BUILD_DIR = build
 INCLUDE_DIR = include
 
 # Source files
-SOURCES = $(SRC_DIR)/main.cpp # $(SRC_DIR)/servo_control.cpp
+SOURCES = $(SRC_DIR)/main.cpp $(SRC_DIR)/pi2c.cpp # $(SRC_DIR)/servo_control.cpp
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 
 # Target executable

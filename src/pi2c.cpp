@@ -67,3 +67,27 @@ int Pi2c::i2cWriteArduinoInt(int input){
 	retval = (i2cWrite(tmp,arr_size) > 0);
 	return retval;
 }
+
+void Pi2c::readGyro(char* output){
+	char gyro_reg = 0x43;
+	int gyro_length = 6;
+
+	i2cWrite(&gyro_reg, 1);
+	i2cRead(output, gyro_length);
+}
+
+void Pi2c::writeReg(char reg, char value){
+	char buf[2] = {reg, value};
+	i2cWrite(buf, 2);
+}
+
+int Pi2c::init(){
+	// Wake up from sleep (register 0x6B = PWR_MGMT_1)
+    writeReg(0x6B, 0x00);
+	usleep(1000);
+    // Set gyro range to ±250°/s (register 0x1B = GYRO_CONFIG)
+    writeReg(0x1B, 0x00);
+
+    usleep(100000); // 100ms settle time
+	return 0;
+}

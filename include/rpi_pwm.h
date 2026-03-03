@@ -59,9 +59,11 @@ public:
      * \param v The duty cycle in percent.
      * \param return >0 on success and -1 after an error.
      **/
+
     inline int setDutyCycle(float v) const {
 	const int dc = (int)round((float)per * (v / 100.0));
 	const int r = setDutyCycleNS(dc);
+    // const int r = setDutyCycleNS(v);
 	return r;
     }
 
@@ -101,9 +103,10 @@ private:
     
 };
 
-float angleToDutyCycle(int angle) {
-    // Mapping angles for DS with 500us 0° position with 0-180 operation range
-    float pulse_us = 500.0f + (angle * 1500.0f / 180.0f);
+float angleToDutseyCycle(int angle, float angle_offset = 43.0) {
+
+    // -90° to +90° mapped to 500us–2500us, neutral at 1500us
+    float pulse_us = 1500.0f + ((angle_offset - angle) * (2000.0f / 180.0f));
     // Convert to duty cycle % at 50Hz (20000µs period)
     return (pulse_us / 20000.0f) * 100.0f;
 }

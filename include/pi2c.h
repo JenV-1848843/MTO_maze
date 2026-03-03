@@ -55,4 +55,10 @@ class Pi2c {
 		//Function: i2cWrite - First parameter the int to send to the array.
 		//...Returns: Error value. > 0 is ok. < 0 means there was an error.
 		int i2cWriteArduinoInt(int input);
+
+		void readGyro(char* output);
+
+		void writeReg(char reg, char value);
+
+		int init();
 };
