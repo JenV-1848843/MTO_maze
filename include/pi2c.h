@@ -56,9 +56,11 @@ class Pi2c {
 		//...Returns: Error value. > 0 is ok. < 0 means there was an error.
 		int i2cWriteArduinoInt(int input);
 
-		void readGyro(char* output);
+		std::array<float, 3> readGyro();
 
 		void writeReg(char reg, char value);
 
 		int init();
+
+		std::array<float, 5> readAccel();
 };

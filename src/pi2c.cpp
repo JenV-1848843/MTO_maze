@@ -10,6 +10,9 @@
 // pi2c.cpp:
 //////////////////////////////////////////////////////////////////////////////// 
 #include "pi2c.h"
+#include <cstdint>
+#include <array>
+#include <math.h>
 
 Pi2c::Pi2c(int address, bool rev0){
 	//Set up the filename of the I2C Bus. Choose appropriate bus for Raspberry Pi Rev.
@@ -57,6 +60,17 @@ int Pi2c::i2cReadArduinoInt(){
 	return retval;
 }
 
+int Pi2c::init(){
+	// Wake up from sleep (register 0x6B = PWR_MGMT_1)
+	writeReg(0x6B, 0x00);
+	usleep(1000);
+	// Set gyro range to ±250°/s (register 0x1B = GYRO_CONFIG)
+	writeReg(0x1B, 0x00);
+
+	usleep(100000); // 100ms settle time
+	return 0;
+}
+
 int Pi2c::i2cWriteArduinoInt(int input){
 	const int arr_size = 2;
 	char tmp[arr_size]; //We know an Arduino Int is 2 Bytes.
@@ -68,26 +82,53 @@ int Pi2c::i2cWriteArduinoInt(int input){
 	return retval;
 }
 
-void Pi2c::readGyro(char* output){
-	char gyro_reg = 0x43;
-	int gyro_length = 6;
-
-	i2cWrite(&gyro_reg, 1);
-	i2cRead(output, gyro_length);
-}
-
 void Pi2c::writeReg(char reg, char value){
 	char buf[2] = {reg, value};
 	i2cWrite(buf, 2);
 }
 
-int Pi2c::init(){
-	// Wake up from sleep (register 0x6B = PWR_MGMT_1)
-    writeReg(0x6B, 0x00);
-	usleep(1000);
-    // Set gyro range to ±250°/s (register 0x1B = GYRO_CONFIG)
-    writeReg(0x1B, 0x00);
+std::array<float, 3> Pi2c::readGyro(){
+	char gyro_reg = 0x43;
+	int gyro_length = 6;
 
-    usleep(100000); // 100ms settle time
-	return 0;
+	char* gyro;
+
+	i2cWrite(&gyro_reg, 1);
+	i2cRead(gyro, gyro_length);
+
+	// Combine high and low bytes into 16-bit signed integers
+    int16_t gyro_x = (int16_t)((uint8_t)gyro[0] << 8 | (uint8_t)gyro[1]);
+    int16_t gyro_y = (int16_t)((uint8_t)gyro[2] << 8 | (uint8_t)gyro[3]);
+    int16_t gyro_z = (int16_t)((uint8_t)gyro[4] << 8 | (uint8_t)gyro[5]);
+    // Convert raw values to degrees/sec (±250°/s range → 131 LSB per °/s)
+    float gx = gyro_x / 131.0f;
+    float gy = gyro_y / 131.0f;
+    float gz = gyro_z / 131.0f;
+
+	return {gx, gy, gz};
+}
+
+std::array<float, 5> Pi2c::readAccel(){
+    char accel_reg = 0x3B;
+    int accel_length = 6;
+
+    char* accel;
+
+    i2cWrite(&accel_reg, 1);
+    i2cRead(accel, accel_length);
+
+    // Combine high and low bytes into 16-bit signed integers
+    int16_t accel_x = (int16_t)((uint8_t)accel[0] << 8 | (uint8_t)accel[1]);
+    int16_t accel_y = (int16_t)((uint8_t)accel[2] << 8 | (uint8_t)accel[3]);
+    int16_t accel_z = (int16_t)((uint8_t)accel[4] << 8 | (uint8_t)accel[5]);
+
+    // Convert to g-force (±2g range → 16384 LSB per g)
+    float fax = accel_x / 16384.0f;
+    float fay = accel_y / 16384.0f;
+    float faz = accel_z / 16384.0f;
+
+    // Calculate roll and pitch in degrees
+    float roll  = atan2(fay, faz) * 180.0f / M_PI;
+    float pitch = atan2(-fax, sqrt(fay * fay + faz * faz)) * 180.0f / M_PI;
+    return {roll, pitch, fax, fay, faz};  // yaw cannot be determined from accelerometer alone
 }
