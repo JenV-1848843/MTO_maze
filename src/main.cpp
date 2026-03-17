@@ -6,6 +6,10 @@
 #include "pi2c.h"
 #include <array>
 
+// web control
+#include "webcontrol.hpp"
+#include <iostream>
+#include <csignal>
 
 // Voor key press detectie
 #include <termios.h>
@@ -34,9 +38,26 @@ bool keyPressed(char target) {
     return ch == target;
 }
 
+// Web control
+
+static std::atomic<bool> app_quit{false};
+
+void signal_handler(int) { app_quit.store(true); }
+
+
 
 
 int main() {
+
+    std::signal(SIGINT,  signal_handler);
+    std::signal(SIGTERM, signal_handler);
+
+    // Add this block before your PWM/I2C setup:
+    WebControl ctrl(8080, "index.html");
+    ctrl.on_start = [] { std::cout << "[Web] Started\n"; };
+    ctrl.on_stop  = [] { std::cout << "[Web] Stopped\n"; };
+    ctrl.serve_async();
+
     // Setup PWM channel and control frequency
     int channel_pwm = 2; // Servo aan buitenkant, GPIO 18
     int channel_pwm_y = 3; // Servo aan binnenkant, GPIO 19
@@ -46,19 +67,22 @@ int main() {
     servo_y.start(channel_pwm_y, freq_pwm);
 
     //Setup I2C channel
-    char adr = 0x68; // standaard adres IMU MPU6050
+    char adr = 0x68; // standaard adres IMU MPU6050 AD0 pin naar GND verbinden
     //char adr_2 = 0x69; // AD0 pin naar VCC verbinden op 2e IMU
     Pi2c imu(adr);
     // wake up and initialise IMU
     imu.init();
 
     
+
+    
     // Test loop voor servo bewegingen
     bool servo_loop = false;
     if (servo_loop){
         std::cout << "starting loop" << std::endl;
-        for (int i = -20; i < 20; i++){
-            int angle = i;
+        for (float i = -20.0; i < 20.0; i++){
+            float angle = i/2;
+            std::cout << i/2 << std::endl;
             int offset_x = 43;
             int offset_y = -43;
             servo_x.setDutyCycle(angleToDutyCycle(angle, offset_x));
@@ -69,9 +93,9 @@ int main() {
     }
 
     // Uitlezen van gyroscoop... 
-    bool gyro_connected = false;
+    bool read_gyro = false;
     while (!keyPressed('x')) {
-        if (gyro_connected) {
+        if (read_gyro) {
             std::cout << std::endl << "Gyro data: " << std::endl;
             
             auto gyro_1 = imu.readGyro();
@@ -94,7 +118,6 @@ int main() {
         float roll_filtered  = 0.0f;
         float pitch_filtered = 0.0f;
 
-
         // Circular buffer for last 5 readings
         const int BUF_SIZE = 5;
         float roll_buf[BUF_SIZE]  = {0};
@@ -105,10 +128,15 @@ int main() {
         auto accel_0 = imu.readAccel();
         float x_0 = accel_0[0];
         float y_0 = accel_0[1];
-        int offset_x = 43;
-        int offset_y = -43;
+        float offset_x = 43.0;
+        float offset_y = -43.0;
 
-        while (!(keyPressed('x'))){
+        std::cout << "[Web] Waiting for start...\n";
+        while (!ctrl.running() && !app_quit.load()) {
+            usleep(100000);
+        }
+
+        while (ctrl.running() && !app_quit.load()){
             std::cout << std::endl << "Accelerometer data: " << std::endl;
             auto accel_1 = imu.readAccel();
 
@@ -130,22 +158,30 @@ int main() {
         pitch_avg /= BUF_SIZE;
 
 
-            int x_m = roll_filtered - x_0;
-            int y_m = pitch_filtered - y_0;
+            float x_m = roll_filtered - x_0;
+            float y_m = pitch_filtered - y_0;
+
+            int x_mf = x_m * 100;
+            x_m = x_mf / 100.0f; 
+
+            int y_mf = y_m * 100;
+            y_m = y_mf / 100.0f;
 
             std::cout << "roll: " << x_m<< " °" << std::endl;
             std::cout << "pitch: " << y_m << " °" << std::endl;
 
-            std::cout << "raw data: " << std::endl;
-            std::cout << "fax: " << accel_1[2] << " °" << std::endl;
-            std::cout << "fay: " << accel_1[3] << " °" << std::endl;
-            std::cout << "fay: " << accel_1[4] << " °" << std::endl;
+            // std::cout << "raw data: " << std::endl;
+            // std::cout << "fax: " << accel_1[2] << " °" << std::endl;
+            // std::cout << "fay: " << accel_1[3] << " °" << std::endl;
+            // std::cout << "fay: " << accel_1[4] << " °" << std::endl;
 
             
-            if (x_m < 50) servo_x.setDutyCycle(angleToDutyCycle(x_m/2, offset_x));
+            if (x_m < 50.0) servo_x.setDutyCycle(angleToDutyCycle(x_m/2, offset_x));
+            else if (x_m < -50) servo_x.setDutyCycle(angleToDutyCycle(-25, offset_x));
             else servo_x.setDutyCycle(angleToDutyCycle(25, offset_x));
 
-            if (y_m < 50) servo_y.setDutyCycle(angleToDutyCycle(y_m/2, offset_y));
+            if (y_m < 50.0) servo_y.setDutyCycle(angleToDutyCycle(y_m/2, offset_y));
+            else if (y_m < -50) servo_y.setDutyCycle(angleToDutyCycle(-25, offset_y));
             else servo_y.setDutyCycle(angleToDutyCycle(25, offset_y));
 
             usleep(10000);
