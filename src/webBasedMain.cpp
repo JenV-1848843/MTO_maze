@@ -15,6 +15,8 @@
 #include "webcontrol.hpp"
 #include "SystemConfig.hpp" // Your new shared state header
 
+const int LOOPTIME{10}; // ms
+
 // Global shared state & quit signal
 SystemConfig shared_state;
 std::atomic<bool> app_quit{false};
@@ -41,6 +43,29 @@ bool keyPressed(char target) {
     fcntl(STDIN_FILENO, F_SETFL, oldf);
 
     return ch == target;
+}
+
+void PID_control(float error_x, float error_y, RPI_PWM servo_x, RPI_PWM servo_y){
+    // Get live PID parameters safely from the shared state
+    float kp_x, ki_x, kd_x;
+    float kp_y, ki_y, kd_y;
+    {
+        std::lock_guard<std::mutex> lock(shared_state.mtx);
+        kp_x = shared_state.pid_x.kp;
+        ki_x = shared_state.pid_x.ki;
+        kd_x = shared_state.pid_x.kd;
+        
+        kp_y = shared_state.pid_y.kp;
+        ki_y = shared_state.pid_y.ki;
+        kd_y = shared_state.pid_y.kd;
+    }
+
+    // Calculate the new required servo angles
+    float output_angle_x = shared_state.pid_x.calculate(error_x, LOOPTIME);
+    float output_angle_y = shared_state.pid_y.calculate(error_y, LOOPTIME);
+    // Write to the servos
+    servo_x.setDutyCycle(angleToDutyCycle(output_angle_x, shared_state.offset_x));
+    servo_y.setDutyCycle(angleToDutyCycle(output_angle_y, shared_state.offset_y));
 }
 
 // ---------------------------------------------------------
@@ -81,7 +106,7 @@ void hardware_control_loop() {
 
     while (!app_quit.load()) {
         // 1. Calculate next wake time
-        next_wake_time += std::chrono::milliseconds(10);
+        next_wake_time += std::chrono::milliseconds(LOOPTIME);
 
         // 2. Safely read current config
         SystemMode current_mode;
@@ -95,13 +120,17 @@ void hardware_control_loop() {
 
         // 3. State Machine Execution
         switch (current_mode) {
-            case SystemMode::IDLE:
+            case SystemMode::CONTROLLER: {
                 // Just hold the platform flat
-                servo_x.setDutyCycle(angleToDutyCycle(0, offset_x));
-                servo_y.setDutyCycle(angleToDutyCycle(0, offset_y));
-                break;
+                // servo_x.setDutyCycle(angleToDutyCycle(0, offset_x));
+                // servo_y.setDutyCycle(angleToDutyCycle(0, offset_y));
+                float error_x = 0.0f;
+                float error_y = 0.0f;
 
-            case SystemMode::TARGETING: {
+                PID_control(error_x, error_y, servo_x, servo_y);
+                break;
+            }
+            case SystemMode::AUTO: {
                 // Read and filter IMU
                 auto accel_1 = imu.readAccel();
                 roll_filtered  = alpha * accel_1[0] + (1.0f - alpha) * roll_filtered;
@@ -135,9 +164,11 @@ void hardware_control_loop() {
             }
             
             case SystemMode::CALIBRATING:
-            case SystemMode::MANUAL:
+            case SystemMode::MANUAL:{
+
                 // Future implementation
                 break;
+            }
         }
 
         // 4. Sleep exactly until the next 10ms boundary
@@ -163,11 +194,11 @@ int main() {
     // Link the web buttons to the state machine
     ctrl.on_start = [] { 
         std::cout << "[Web] Start pressed -> Mode: TARGETING\n"; 
-        shared_state.setMode(SystemMode::TARGETING);
+        shared_state.setMode(SystemMode::AUTO);
     };
     ctrl.on_stop  = [] { 
         std::cout << "[Web] Stop pressed -> Mode: IDLE\n"; 
-        shared_state.setMode(SystemMode::IDLE);
+        shared_state.setMode(SystemMode::CALIBRATING);
     };
     
     ctrl.serve_async();

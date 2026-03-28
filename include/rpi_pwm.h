@@ -106,7 +106,7 @@ private:
 float angleToDutyCycle(float angle, float angle_offset = 43.0) {
 
     // -90° to +90° mapped to 500us–2500us, neutral at 1500us
-    float pulse_us = 1500.0f + ((angle_offset - angle) * (2000.0f / 180.0f));
+    float pulse_us = 1500.0f + (-1 * (angle - angle_offset) * 3.14159f * (2000.0f / 180.0f));
     // Convert to duty cycle % at 50Hz (20000µs period)
     return (pulse_us / 20000.0f) * 100.0f;
 }

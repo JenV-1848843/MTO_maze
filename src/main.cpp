@@ -73,21 +73,34 @@ int main() {
     // wake up and initialise IMU
     imu.init();
 
-    
+    // Test voor nulpunt in usec
+    bool raw_pwm = false;
+    if (raw_pwm) {
+        std::cout << "entering raw pwm " <<std::endl;
+        for (float t = 12.5f; t > 0.0f; t -= 0.1f){
+            // float dc = t / 100;
+            std::cout << "cycle: " << t << "% " <<std::endl;
+            servo_x.setDutyCycle(t);
+            usleep(1000000);
+
+
+        }
+
+    }
 
     
     // Test loop voor servo bewegingen
-    bool servo_loop = false;
+    bool servo_loop = true;
     if (servo_loop){
         std::cout << "starting loop" << std::endl;
         for (float i = -20.0; i < 20.0; i++){
             float angle = i/2;
             std::cout << i/2 << std::endl;
-            int offset_x = 43;
-            int offset_y = -43;
-            servo_x.setDutyCycle(angleToDutyCycle(angle, offset_x));
-            servo_y.setDutyCycle(angleToDutyCycle(angle, offset_y));
-            std::cout << "Duty cycle at " << angle << "°" << std::endl;
+            int offset_x = 40;
+            int offset_y = 0;
+            servo_x.setDutyCycle(angleToDutyCycle(i, offset_x));
+            servo_y.setDutyCycle(angleToDutyCycle(i, offset_y));
+            std::cout << "Duty cycle at " << i << "°" << std::endl;
             usleep(200000);
         }
     }
@@ -111,8 +124,27 @@ int main() {
             break;  // Exit loop if no gyro connected
         }
     }
+    bool offset_test = false;
+    if (offset_test) {
+        // x = -4°
+        // y = -85°
+        int angle = -10;
+        while (!keyPressed('x')){
+            usleep(1000);
+            if (keyPressed('l')) {
+                angle -= 1;
+                usleep(1000);
+            }
+            else if (keyPressed('m')) angle += 1;
+            servo_y.setDutyCycle(angleToDutyCycle(angle, 0));
+            // servo_y.setDutyCycle(angleToDutyCycle(angle, 0));
+            std::cout << "Duty cycle at " << angle << "°" << std::endl;
+            usleep(200000);
+        }
+    }
 
-    bool read_accel = true;
+
+    bool read_accel = false;
     if (read_accel){
         float alpha = 0.1f;  // 0.0 = ignore new data, 1.0 = ignore history
         float roll_filtered  = 0.0f;
@@ -128,15 +160,11 @@ int main() {
         auto accel_0 = imu.readAccel();
         float x_0 = accel_0[0];
         float y_0 = accel_0[1];
-        float offset_x = 43.0;
-        float offset_y = -43.0;
+        float offset_x = 0.0;
+        float offset_y = 0.0;
 
-        std::cout << "[Web] Waiting for start...\n";
-        while (!ctrl.running() && !app_quit.load()) {
-            usleep(100000);
-        }
 
-        while (ctrl.running() && !app_quit.load()){
+        while (!keyPressed('x')){
             std::cout << std::endl << "Accelerometer data: " << std::endl;
             auto accel_1 = imu.readAccel();
 
@@ -161,11 +189,9 @@ int main() {
             float x_m = roll_filtered - x_0;
             float y_m = pitch_filtered - y_0;
 
-            int x_mf = x_m * 100;
-            x_m = x_mf / 100.0f; 
+            int x_mf = x_m * 100; x_m = x_mf / 100.0f; 
 
-            int y_mf = y_m * 100;
-            y_m = y_mf / 100.0f;
+            int y_mf = y_m * 100; y_m = y_mf / 100.0f;
 
             std::cout << "roll: " << x_m<< " °" << std::endl;
             std::cout << "pitch: " << y_m << " °" << std::endl;
@@ -176,11 +202,11 @@ int main() {
             // std::cout << "fay: " << accel_1[4] << " °" << std::endl;
 
             
-            if (x_m < 50.0) servo_x.setDutyCycle(angleToDutyCycle(x_m/2, offset_x));
+            if (x_m < 90.0) servo_x.setDutyCycle(angleToDutyCycle(x_m*2, offset_x));
             else if (x_m < -50) servo_x.setDutyCycle(angleToDutyCycle(-25, offset_x));
             else servo_x.setDutyCycle(angleToDutyCycle(25, offset_x));
 
-            if (y_m < 50.0) servo_y.setDutyCycle(angleToDutyCycle(y_m/2, offset_y));
+            if (y_m < 90.0) servo_y.setDutyCycle(angleToDutyCycle(y_m*2, offset_y));
             else if (y_m < -50) servo_y.setDutyCycle(angleToDutyCycle(-25, offset_y));
             else servo_y.setDutyCycle(angleToDutyCycle(25, offset_y));
 
