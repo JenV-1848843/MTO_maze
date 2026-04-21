@@ -5,12 +5,12 @@
 // for color conversions
 #include <opencv2/opencv.hpp>
 
-#include "headers/config.h"
-#include "headers/utils.h"
-#include "headers/cell.h"
-#include "headers/maze.h"
-#include "headers/position.h"
-#include "headers/wall.h"
+#include "../include/headers/config.h"
+#include "../include/headers/utils.h"
+#include "../include/headers/cell.h"
+#include "../include/headers/maze.h"
+#include "../include/headers/position.h"
+#include "../include/headers/wall.h"
 
 
 
@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
     Maze maze;
     maze.print();
 
-    std::string imagePathRelative = "../../src/images/";
+    std::string imagePathRelative = "../include/images/";
     std::string imagePath = imagePathRelative + "maze_5.jpg";
     cv::Mat frame = cv::imread(imagePath, cv::IMREAD_COLOR);
     cv::resize(frame, frame, cv::Size(), 0.3, 0.3);
