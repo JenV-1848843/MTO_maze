@@ -1,48 +1,47 @@
-# Compiler and flags
+# Compiler
 CXX = g++
+
+# Flags
 CXXFLAGS = -Wall -Iinclude
 LDFLAGS = -lgpiod
 
 # Directories
 SRC_DIR = src
 BUILD_DIR = build
-INCLUDE_DIR = include
 
 # Source files
-SOURCES = $(SRC_DIR)/main.cpp $(SRC_DIR)/pi2c.cpp # $(SRC_DIR)/servo_control.cpp
+SOURCES = $(SRC_DIR)/main_servo.cpp \
+          $(SRC_DIR)/motorcontrol.cpp
+
+# Object files
 OBJECTS = $(SOURCES:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o)
 
 # Target executable
-TARGET = $(BUILD_DIR)/run_me
+TARGET = $(BUILD_DIR)/run_me_servo
 
 # Default target
 all: $(BUILD_DIR) $(TARGET)
 
-# Create build directory if it doesn't exist
+# Create build directory
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-# Link object files to create executable
+# Link
 $(TARGET): $(OBJECTS)
 	$(CXX) $(OBJECTS) -o $(TARGET) $(LDFLAGS)
 	@echo "Build complete: $(TARGET)"
 
-# Compile source files to object files
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp $(INCLUDE_DIR)/%.h
+# Compile all .cpp files
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
-# Special rule for main.cpp (no matching .h file)
-$(BUILD_DIR)/main.o: $(SRC_DIR)/main.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
-
-# Clean build artifacts
+# Clean
 clean:
 	rm -rf $(BUILD_DIR)/*.o $(TARGET)
 	@echo "Cleaned build directory"
 
-# Run the program
+# Run
 run: $(TARGET)
 	sudo $(TARGET)
 
-# Phony targets
 .PHONY: all clean run

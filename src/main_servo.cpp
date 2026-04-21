@@ -69,10 +69,10 @@ int main() {
             }
 
             // Clamp angles (0–180)
-            if (servo_x_angle < 0) servo_x_angle = 0;
-            if (servo_x_angle > 180) servo_x_angle = 180;
-            if (servo_y_angle < 0) servo_y_angle = 0;
-            if (servo_y_angle > 180) servo_y_angle = 180;
+            if (servo_x_angle < -100) servo_x_angle = -100;
+            if (servo_x_angle > 100) servo_x_angle = 100;
+            if (servo_y_angle < -90) servo_y_angle = -90;
+            if (servo_y_angle > 90) servo_y_angle = 90;
 
             // Update servos
             ServoMotor_Control(2, angle_to_pulse(servo_x_angle)); // GPIO18
