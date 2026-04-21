@@ -14,8 +14,12 @@
 #include "pi2c.h"
 #include "webcontrol.hpp"
 #include "SystemConfig.hpp" // Your new shared state header
+#include "motorcontrol.h"
 
 const int LOOPTIME{10}; // ms
+
+const int SERVO_X{2};
+const int SERVO_Y{3};
 
 // Global shared state & quit signal
 SystemConfig shared_state;
@@ -23,6 +27,10 @@ std::atomic<bool> app_quit{false};
 
 void signal_handler(int) { 
     app_quit.store(true); 
+}
+
+int angle_to_pulse(int angle) {
+    return 1000 + (angle * 1000) / 180;
 }
 
 // Helper function: check if a key has been pressed (non-blocking)
@@ -64,8 +72,11 @@ void PID_control(float error_x, float error_y, RPI_PWM servo_x, RPI_PWM servo_y)
     float output_angle_x = shared_state.pid_x.calculate(error_x, LOOPTIME);
     float output_angle_y = shared_state.pid_y.calculate(error_y, LOOPTIME);
     // Write to the servos
-    servo_x.setDutyCycle(angleToDutyCycle(output_angle_x, shared_state.offset_x));
-    servo_y.setDutyCycle(angleToDutyCycle(output_angle_y, shared_state.offset_y));
+
+    ServoMotor_Control(SERVO_X, angle_to_pulse(output_angle_x));
+    ServoMotor_Control(SERVO_Y, angle_to_pulse(output_angle_y));
+    //servo_x.setDutyCycle(angleToDutyCycle(output_angle_x, shared_state.offset_x));
+    //servo_y.setDutyCycle(angleToDutyCycle(output_angle_y, shared_state.offset_y));
 }
 
 // ---------------------------------------------------------
