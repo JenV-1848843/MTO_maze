@@ -17,7 +17,7 @@ struct PIDController {
     float kd = 0.0f;
 
     // Output limits (e.g., max servo angle in degrees)
-    float output_limit = 30.0f; 
+    float output_limit = 20.0f; 
     float integral_limit = 20.0f; // Anti-windup limit
 
     // Memory / State
