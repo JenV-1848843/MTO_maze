@@ -2,6 +2,7 @@
 #include "../headers/config.h"
 #include "../headers/maze.h"
 #include "../headers/cell.h"
+#include "../headers/ballPosition.h"
 
 
 // Order points of a bounding rectangle: top-left, top-right, bottom-right, bottom-left
@@ -61,6 +62,9 @@ void readMazeConfig(
 
     frame.copyTo(filteredImage, redMask);
     frame.copyTo(filteredImage, orangeMask);
+
+    cv::imshow("detected parts", filteredImage);
+    cv::waitKey(0);
 
 
 
@@ -195,10 +199,8 @@ void readMazeConfig(
     );
 
 
-    #ifdef DESKTOP_BUILD
-        cv::imshow("innerBoard", innerBoard);
-        cv::waitKey(0);
-    #endif
+    cv::imshow("innerBoard", innerBoard);
+    cv::waitKey(0);
 };
 
 void detectHorizontalWalls(
@@ -286,97 +288,107 @@ void detectVerticalWalls(
     }
 };
 
-void trackBall(cv::Mat frame) {
-    cv::Mat hsv; // frame
-    cv::Mat redMaskLow, redMaskHigh, redMask, greenMask; // masks
-
+BallPosition trackBall(cv::Mat frame) {
+    BallPosition result{};
+    result.found = false;
+    cv::Mat hsv;
+    cv::Mat borderMaskLow, borderMaskHigh, borderMask, ballMask;
     cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
-
-    cv::inRange(hsv, cv::Scalar(0, 100, 100), cv::Scalar(redThresholdLow, 255, 255), redMaskLow); // Only red pixels are kept from the image
-    cv::inRange(hsv, cv::Scalar(redThresholdHigh,100,100), cv::Scalar(180,255,255), redMaskHigh); // Only red pixels are kept from the image
-    cv::inRange(hsv, cv::Scalar(40, 100, 100), cv::Scalar(80, 255, 255), greenMask);
-
-    redMask = redMaskLow | redMaskHigh;
+    cv::inRange(hsv, cv::Scalar(0, 100, 100), cv::Scalar(redThresholdLow, 255, 255), borderMaskLow);
+    cv::inRange(hsv, cv::Scalar(redThresholdHigh, 100, 100), cv::Scalar(180, 255, 255), borderMaskHigh);
+    cv::inRange(hsv,
+                cv::Scalar(0, 0, 200),    // low H, low S, high V
+                cv::Scalar(180, 50, 255), // any H, low S, max V
+                ballMask);
+    borderMask = borderMaskLow | borderMaskHigh;
 
     cv::Rect borderBox, ballBox;
+    bool borderFound = false;
 
-    // Find contours
+    // Find border contours
     std::vector<std::vector<cv::Point>> edgeContours;
-    cv::findContours(redMask, edgeContours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
+    cv::findContours(borderMask, edgeContours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     for (const auto& contour : edgeContours) {
-        // Filter out small noise blobs
         if (cv::contourArea(contour) < 500) continue;
-
         cv::Rect bbox = cv::boundingRect(contour);
-        borderBox = bbox;
-
-
-        pixelsPerMm = bbox.height / (double)outerWallLength;
-        mmPerPixel = (double)outerWallLength / bbox.height;
-
-        // Check if bounding box is roughly square
         float aspectRatio = (float)bbox.width / bbox.height;
         if (aspectRatio > 0.8 && aspectRatio < 1.2) {
+            borderBox = bbox;
+            borderFound = true;
+            pixelsPerMm = bbox.height / (double)outerWallLength;
+            mmPerPixel = (double)outerWallLength / bbox.height;
             cv::rectangle(frame, bbox, cv::Scalar(0, 255, 0), 2);
             cv::putText(frame, "278 mm", cv::Point(bbox.x, bbox.y - 10),
                 cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 255, 0), 2);
         }
     }
+    if (!borderFound) return result;
 
-    // Find contours of the ball
+    // Crop the white mask to only search inside the border box
+    cv::Mat maskedBallRegion = ballMask(borderBox);
+    bool ballFound = false;
     std::vector<std::vector<cv::Point>> contours;
-    cv::findContours(greenMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
+    cv::findContours(maskedBallRegion, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
     for (const auto& contour : contours) {
+        double area = cv::contourArea(contour);
+        if (area < 50 || area > 2000) continue;
         cv::Rect bbox = cv::boundingRect(contour);
-        ballBox = bbox;
-        cv::rectangle(frame, bbox, cv::Scalar(0, 255, 0), 2);
+        float aspectRatio = (float)bbox.width / bbox.height;
+        if (aspectRatio < 0.6 || aspectRatio > 1.4) continue;
+
+        // Offset back to full frame coordinates
+        ballBox = cv::Rect(bbox.x + borderBox.x, bbox.y + borderBox.y, bbox.width, bbox.height);
+        ballFound = true;
+        cv::rectangle(frame, ballBox, cv::Scalar(0, 255, 0), 2);
     }
+    if (!ballFound) return result;
 
-    int verticalPixelDistance = std::abs(ballBox.y - borderBox.y);
-    double verticalMmDistance = verticalPixelDistance * mmPerPixel;
+    // Pixel position (center of ball)
+    result.pixelX = ballBox.x + ballBox.width / 2.0f;
+    result.pixelY = ballBox.y + ballBox.height / 2.0f;
 
-    int horizontalPixelDistance = std::abs(ballBox.x - borderBox.x);
-    double horizontalMmDistance = horizontalPixelDistance * mmPerPixel;
+    // mm distance from the top-left corner of the border box
+    result.mmX = std::abs(result.pixelX - borderBox.x) * mmPerPixel;
+    result.mmY = std::abs(result.pixelY - borderBox.y) * mmPerPixel;
 
-    // Draw a vertical line between the two points
-    int x = ballBox.x + ballBox.width / 2;
+    // convert world distances to grid coordinates
+    result.x = worldToGrid(result.mmX);
+    result.y = worldToGrid(result.mmY);
+
+    result.found = true;
+
+    // Draw measurement lines
+    int x = (int)result.pixelX;
+    int y = (int)result.pixelY;
     cv::line(frame, cv::Point(x, borderBox.y), cv::Point(x, ballBox.y),
         cv::Scalar(255, 0, 0), 2);
-
-    int y = ballBox.y + ballBox.height/ 2;
     cv::line(frame, cv::Point(borderBox.x, y), cv::Point(ballBox.x, y),
         cv::Scalar(255, 0, 0), 2);
 
-    // Label the distance
-    std::string verticalLabel = std::to_string((int)verticalMmDistance) + " mm";
+    // Label distances
+    std::string verticalLabel = std::to_string((int)result.mmY) + " mm";
     cv::putText(frame, verticalLabel,
-        cv::Point(x + 10, borderBox.y + verticalPixelDistance / 2),
+        cv::Point(x + 10, borderBox.y + (int)(result.mmY / mmPerPixel) / 2),
         cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 0, 0), 2);
-
-    std::string horizontalLabel = std::to_string((int)horizontalMmDistance) + " mm";
+    std::string horizontalLabel = std::to_string((int)result.mmX) + " mm";
     cv::putText(frame, horizontalLabel,
-        cv::Point(borderBox.x + horizontalPixelDistance / 2, y - 10),
+        cv::Point(borderBox.x + (int)(result.mmX / mmPerPixel) / 2, y - 10),
         cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 0, 0), 2);
-
-    // cv::Mat hsv;
-    // cv::Mat ballMask;
-
-    // cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
-
-    // cv::inRange(hsv, cv::Scalar(40, 100, 100), cv::Scalar(80, 255, 255), ballMask);
-
-    // // Find contours
-    // std::vector<std::vector<cv::Point>> contours;
-    // cv::findContours(ballMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
-    // // Draw bounding box around each contour
-    // for (const auto& contour : contours) {
-    //     cv::Rect bbox = cv::boundingRect(contour);
-    //     cv::rectangle(frame, bbox, cv::Scalar(0, 255, 0), 2);
-    // }
+    std::string positionLabel = "(" + std::to_string(result.x) + ", " + std::to_string(result.y) + ")";
+    cv::putText(frame, positionLabel,
+        cv::Point(borderBox.x + 50, borderBox.y + 50),
+        cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 2);
 
     cv::imshow("Result", frame);
-    cv::waitKey(0);
+    cv::waitKey(5);
+
+    return result;
+};
+
+int worldToGrid(double worldDimention) {
+    double cellWidth = (double)outerWallLength/8;
+    for (int i = 0; i < 8; i++) {
+        if (worldDimention <= cellWidth * (i + 1)) return i;
+    }
+    return 7;
 };

@@ -1,8 +1,10 @@
 #include <vector>
 #include "config.h"
 #include "cell.h"
+#include "ballPosition.h"
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
+#include <cstdint>
 
 #pragma once
 
@@ -33,4 +35,8 @@ void detectVerticalWalls(
     cv::Mat wallMask
 );
 
-void trackBall(cv::Mat frame);
+BallPosition trackBall(cv::Mat frame);
+
+int worldToGrid(double worldDimention);
+
+double gridToWorld(int x, int y);

@@ -2,3 +2,4 @@ build
 .vscode
 jen/build
 jen/.vscode
+build/

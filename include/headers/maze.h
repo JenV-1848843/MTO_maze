@@ -5,6 +5,8 @@
 #include "cell.h"
 #include "position.h"
 #include "config.h"
+#include "ballPosition.h"
+#include "direction.h"
 
 class Maze {
     public:
@@ -12,6 +14,10 @@ class Maze {
         void print();
         std::array<std::array<Cell, amountCellRows>, amountCellCols>& getConfig();
         void bfs(Cell& dest);
+        void resetWalls();
+        int stepsUntilTurn(Cell& from);
+        Direction directionTo(Cell* from, Cell* to);
+        double mmsUntilTurn(Cell& from, BallPosition* pos);
         // ~Maze();
 
     private:
