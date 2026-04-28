@@ -35,6 +35,15 @@ elseif(UNIX)
     find_package(OpenCV REQUIRED)
     include_directories(${OpenCV_INCLUDE_DIRS})
 
+    # Check if gpiod is available (for Raspberry Pi hardware)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(GPIOD libgpiod)
+    endif()
+    if(NOT GPIOD_FOUND)
+        message(STATUS "libgpiod not found - MTO_maze will not include servo control (Pi-specific)")
+    endif()
+
     add_executable(webApp
         src/webBasedMain.cpp
         src/pi2c.cpp
@@ -42,7 +51,8 @@ elseif(UNIX)
 	include/SystemConfig.hpp
     )
 
-    add_executable(MTO_maze
+    # MTO_maze sources (with conditional servo control)
+    set(MTO_MAZE_SOURCES
         src/main_jen.cpp
         ./include/sources/utils.cpp
         ./include/sources/cell.cpp
@@ -57,8 +67,20 @@ elseif(UNIX)
         ./include/headers/ballPosition.h
     )
 
+    if(GPIOD_FOUND)
+        list(APPEND MTO_MAZE_SOURCES src/motorcontrol.cpp)
+    endif()
+
+    add_executable(MTO_maze ${MTO_MAZE_SOURCES})
+
     target_include_directories(webApp PRIVATE include)
     target_link_libraries(MTO_maze ${OpenCV_LIBS})
+
+    if(GPIOD_FOUND)
+        target_include_directories(MTO_maze PRIVATE ${GPIOD_INCLUDE_DIRS})
+        target_link_libraries(MTO_maze ${GPIOD_LIBRARIES})
+        target_compile_definitions(MTO_maze PRIVATE SERVO_CONTROL_ENABLED=1)
+    endif()
 
 else()
     message(FATAL_ERROR "Unsupported OS. Only Windows and Linux/Unix are supported.")
