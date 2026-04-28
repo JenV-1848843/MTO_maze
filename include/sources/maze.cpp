@@ -152,4 +152,97 @@ void Maze::bfs(Cell& destination) {
     }
 }
 
+void Maze::resetWalls() {
+    for (size_t x = 0; x < amountCellCols; ++x) {
+        for (size_t y = 0; y < amountCellRows; ++y) {
+            config[x][y].setWall(Wall::TOP, false);
+            config[x][y].setWall(Wall::BOTTOM, false);
+            config[x][y].setWall(Wall::LEFT, false);
+            config[x][y].setWall(Wall::RIGHT, false);
+        }
+    }
+
+    // Restore boundary walls
+    this->setOuterWalls(this->config);
+}
+
+Direction Maze::directionTo(Cell* from, Cell* to) {
+    int dx = to->getX() - from->getX();
+    int dy = to->getY() - from->getY();
+    if      (dx ==  1) return Direction::RIGHT;
+    else if (dx == -1) return Direction::LEFT;
+    else if (dy ==  1) return Direction::DOWN;
+    else               return Direction::UP;
+}
+
+int Maze::stepsUntilTurn(Cell& from) {
+    Cell* current = &config[from.getX()][from.getY()];
+
+    // No path found from this cell
+    if (current->next == nullptr)
+        return 0;
+
+    Direction initialDir = directionTo(current, current->next);
+    int steps = 0;
+
+    while (current->next != nullptr) {
+        Direction dir = directionTo(current, current->next);
+        if (dir != initialDir)
+            break;
+        ++steps;
+        current = current->next;
+    }
+
+    return steps;
+}
+
+double gridToWorld(int coord) {
+    double cellWidth = (double)outerWallLength/8;
+    return (coord * cellWidth) + cellWidth/2;
+};
+
+double Maze::mmsUntilTurn(Cell& from, BallPosition* pos) {
+    Cell* current = &config[from.getX()][from.getY()];
+
+    // No path found from this cell
+    if (current->next == nullptr)
+        return 0.0;
+
+    Direction initialDir = directionTo(current, current->next);
+    int steps = 0;
+    Cell* dest = current->next;
+
+    while (current->next != nullptr) {
+        Direction dir = directionTo(current, current->next);
+        if (dir != initialDir)
+            break;
+        ++steps;
+        dest = current->next;
+        current = current->next;
+    }
+
+    double fromMm = 0.0;
+    double destMm = 0.0;
+
+    if (initialDir == Direction::RIGHT) {
+        double fromMm = pos->mmX;
+        double destMm = gridToWorld(dest->getX());
+        return destMm - fromMm;
+    } else if (initialDir == Direction::LEFT) {
+        double fromMm = pos->mmX;
+        double destMm = gridToWorld(dest->getX());
+        return fromMm - destMm;
+    } else if (initialDir == Direction::DOWN) {
+        double fromMm = pos->mmY;
+        double destMm = gridToWorld(dest->getY());
+        return destMm - fromMm;
+    } else if (initialDir == Direction::UP) {
+        double fromMm = pos->mmY;
+        double destMm = gridToWorld(dest->getY());
+        return fromMm - destMm;
+    } else {
+        return 0.0;
+    }
+}
+
 // Maze::~Maze(){}

@@ -31,14 +31,34 @@ elseif(UNIX)
     # ── Linux: webApp ───────────────────────────────────────────────────────
     project(webApp)
     set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/build)
+    set(OpenCV_DIR ~/opencv/build)
+    find_package(OpenCV REQUIRED)
+    include_directories(${OpenCV_INCLUDE_DIRS})
 
     add_executable(webApp
         src/webBasedMain.cpp
         src/pi2c.cpp
+	include/webcontrol.hpp
+	include/SystemConfig.hpp
     )
 
-    message(STATUS "Building webApp for Linux")
+    add_executable(MTO_maze
+        src/main_jen.cpp
+        ./include/sources/utils.cpp
+        ./include/sources/cell.cpp
+        ./include/sources/maze.cpp
+        ./include/headers/cell.h
+        ./include/headers/config.h
+        ./include/headers/direction.h
+        ./include/headers/maze.h
+        ./include/headers/position.h
+        ./include/headers/utils.h
+        ./include/headers/wall.h
+        ./include/headers/ballPosition.h
+    )
+
     target_include_directories(webApp PRIVATE include)
+    target_link_libraries(MTO_maze ${OpenCV_LIBS})
 
 else()
     message(FATAL_ERROR "Unsupported OS. Only Windows and Linux/Unix are supported.")
