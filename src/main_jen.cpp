@@ -26,10 +26,14 @@ static int angle_to_pulse(int angle) {
 }
 
 // PID tuning — adjust these during testing
-static constexpr float PID_KP = 0.3f;
-static constexpr float PID_KI = 0.1f;
-static constexpr float PID_KD = 0.2f;
+
+// eventueel: 0.25 0.5 1.5
+static constexpr float PID_KPX = 0.9f;
+static constexpr float PID_KI = 0.8f;
+static constexpr float PID_KD = 0.9f;
 static constexpr float PID_OUTPUT_LIMIT = 30.0f;
+
+static constexpr float PID_KPY = 0.6f;
 
 int main(int argc, char* argv[]) {
 	int targetX, targetY;
@@ -75,7 +79,8 @@ int main(int argc, char* argv[]) {
 	ServoMotor_Control(3, angle_to_pulse(0));
 
 	PIDController pid_x, pid_y;
-	pid_x.kp = pid_y.kp = PID_KP;
+	pid_x.kp = PID_KPX;
+	pid_y.kp = PID_KPY;
 	pid_x.ki = pid_y.ki = PID_KI;
 	pid_x.kd = pid_y.kd = PID_KD;
 	pid_x.output_limit = pid_y.output_limit = PID_OUTPUT_LIMIT;
@@ -162,7 +167,7 @@ struct gpiod_chip *chip;
 		}
 
 		std::cout << "Reachable! Following path:\n";
-		// std::cout << "(" << current->getX() << "," << current->getY() << ") -> ";
+		// std::cout << e"(" << current->getX() << "," << current->getY() << ") -> ";
 		double mms = maze.mmsUntilTurn(*c, &pos);
 		Direction dir = maze.directionTo(c, c->next);
 		std::cout << "moving " << mms << " mms to " << to_string(dir) << std::endl;
@@ -174,11 +179,11 @@ struct gpiod_chip *chip;
 			switch (dir)
 			{
 			case Direction::UP:
-				error_x = 0.0;
+				error_x = -1.0;
 				error_y = -mms;
 				break;
 			case Direction::DOWN:
-				error_x = 0.0;
+				error_x = -1.0;
 				error_y = mms;
 				break;
 			case Direction::LEFT:
@@ -207,7 +212,7 @@ struct gpiod_chip *chip;
 			int dt_ms = static_cast<int>(
 				std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count()
 			);
-			if (dt_ms < 1) dt_ms = 1;
+			// if (dt_ms < 1) dt_ms = 1;
 			last_time = now;
 
 			float out_x = pid_x.calculate(error_x, dt_ms);
@@ -215,7 +220,7 @@ struct gpiod_chip *chip;
 			std::cout << "controlling servos with: " << out_x << " & " << out_y << std::endl;
 			ServoMotor_Control(2, angle_to_pulse(static_cast<int>(out_x)));
 			ServoMotor_Control(3, angle_to_pulse(static_cast<int>(out_y)));
-			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			std::this_thread::sleep_for(std::chrono::milliseconds(2));
 		}
 		// #endif
 	}
