@@ -3,24 +3,31 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>System Control</title>
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;600&display=swap" rel="stylesheet"/>
+  <title>MTO Maze · Control</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@400;600;700&display=swap" rel="stylesheet"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #080c10;
-      --panel: #0d1520;
-      --border: #1a3a5c;
-      --accent: #00ffe0;
-      --accent-dim: #00ffe033;
-      --danger: #ff3b5c;
+      --bg:         #080c10;
+      --panel:      #0b1118;
+      --surface:    #0d1520;
+      --border:     #1a3a5c;
+      --border-dim: #112234;
+      --accent:     #00ffe0;
+      --accent-dim: #00ffe022;
+      --accent-mid: #00ffe066;
+      --warn:       #f0b429;
+      --warn-dim:   #f0b42922;
+      --danger:     #ff3b5c;
       --danger-dim: #ff3b5c22;
-      --text: #c8ddf0;
-      --muted: #3a6080;
-      --font-mono: 'Share Tech Mono', monospace;
-      --font-ui: 'Rajdhani', sans-serif;
+      --text:       #c8ddf0;
+      --muted:      #3a6080;
+      --font-mono:  'Share Tech Mono', monospace;
+      --font-ui:    'Rajdhani', sans-serif;
     }
+
+    html, body { height: 100%; }
 
     body {
       background: var(--bg);
@@ -28,263 +35,1228 @@
       font-family: var(--font-ui);
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
-      justify-content: center;
-      overflow: hidden;
+      justify-content: flex-start;
+      padding: 32px 16px 48px;
     }
 
+    /* Scanline overlay */
     body::before {
       content: '';
       position: fixed;
       inset: 0;
-      background: repeating-linear-gradient(to bottom, transparent 0px, transparent 3px, rgba(0,0,0,0.08) 3px, rgba(0,0,0,0.08) 4px);
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 3px,
+        rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px
+      );
       pointer-events: none;
-      z-index: 999;
+      z-index: 1000;
     }
 
+    /* Grid background */
     body::after {
       content: '';
       position: fixed;
       inset: 0;
-      background-image: linear-gradient(rgba(0,255,224,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,255,224,0.03) 1px, transparent 1px);
-      background-size: 40px 40px;
+      background-image:
+        linear-gradient(rgba(0,255,224,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,224,0.025) 1px, transparent 1px);
+      background-size: 48px 48px;
       pointer-events: none;
     }
 
+    /* ── Header ─────────────────────────────────────────────── */
+    .header {
+      width: min(860px, 95vw);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .header-title {
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: clamp(20px, 4vw, 28px);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #e8f4ff;
+    }
+    .header-title span { color: var(--accent); }
+    .header-meta {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-align: right;
+    }
+    .backend-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+    .backend-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.4s, box-shadow 0.4s;
+    }
+    .backend-dot.online  { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    .backend-dot.offline { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+    #backend-label { color: var(--muted); }
+    #backend-label.online  { color: var(--accent); }
+    #backend-label.offline { color: var(--danger); }
+
+    /* ── Main panel ─────────────────────────────────────────── */
     .panel {
       background: var(--panel);
       border: 1px solid var(--border);
-      border-radius: 4px;
-      padding: 48px 56px;
-      width: min(720px, 95vw); 
-      
-      /* Always show scrollbar to prevent layout width jumps */
-      max-height: 85vh;
-      overflow-y: scroll; 
-      
+      border-radius: 2px;
+      width: min(860px, 95vw);
       position: relative;
-      box-shadow: 0 0 0 1px #0a1e33, 0 0 60px rgba(0,255,224,0.04), inset 0 1px 0 rgba(0,255,224,0.06);
+      box-shadow:
+        0 0 0 1px #0a1e33,
+        0 0 80px rgba(0,255,224,0.03),
+        inset 0 1px 0 rgba(0,255,224,0.05);
     }
 
-    /* Custom Scrollbar */
-    .panel::-webkit-scrollbar { width: 8px; }
-    .panel::-webkit-scrollbar-track { background: transparent; margin: 4px 0; }
-    .panel::-webkit-scrollbar-thumb { background: var(--muted); border-radius: 4px; }
-    .panel::-webkit-scrollbar-thumb:hover { background: var(--accent); }
-
-    .panel::before, .panel::after {
-      content: ''; position: absolute; width: 14px; height: 14px; border-color: var(--accent); border-style: solid;
-    }
-    .panel::before { top: -1px; left: -1px; border-width: 2px 0 0 2px; }
-    .panel::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
-
+    /* Corner brackets */
+    .panel::before, .panel::after,
     .corner-tr, .corner-bl {
-      position: absolute; width: 14px; height: 14px; border-color: var(--accent); border-style: solid;
+      content: '';
+      position: absolute;
+      width: 16px; height: 16px;
+      border-color: var(--accent);
+      border-style: solid;
     }
-    .corner-tr { top: -1px; right: -1px; border-width: 2px 2px 0 0; }
-    .corner-bl { bottom: -1px; left: -1px; border-width: 0 0 2px 2px; }
+    .panel::before { top: -1px; left: -1px;  border-width: 2px 0 0 2px; }
+    .panel::after  { bottom: -1px; right: -1px; border-width: 0 2px 2px 0; }
+    .corner-tr     { top: -1px; right: -1px;  border-width: 2px 2px 0 0; }
+    .corner-bl     { bottom: -1px; left: -1px;  border-width: 0 0 2px 2px; }
 
-    .tag { font-family: var(--font-mono); font-size: 10px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 28px; display: flex; align-items: center; gap: 10px; }
-    .tag::after { content: ''; flex: 1; height: 1px; background: var(--border); }
-    h1 { font-family: var(--font-ui); font-weight: 600; font-size: clamp(22px, 5vw, 30px); letter-spacing: 0.12em; text-transform: uppercase; color: #e8f4ff; margin-bottom: 8px; }
-    .subtitle { font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-bottom: 24px; letter-spacing: 0.05em; }
-
-    .tabs { display: flex; gap: 16px; margin-bottom: 24px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
-    .tab-btn { background: transparent; border: none; color: var(--muted); font-family: var(--font-mono); font-size: 14px; letter-spacing: 0.1em; cursor: pointer; text-transform: uppercase; padding: 4px 8px; transition: color 0.2s, text-shadow 0.2s; position: relative; }
+    /* ── Tab bar ─────────────────────────────────────────────── */
+    .tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+    }
+    .tab-btn {
+      background: transparent;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      padding: 16px 20px 14px;
+      transition: color 0.2s;
+      position: relative;
+      margin-bottom: -1px;
+    }
     .tab-btn:hover { color: var(--text); }
-    .tab-btn.active { color: var(--accent); text-shadow: 0 0 8px var(--accent-dim); }
-    .tab-btn.active::after { content: ''; position: absolute; bottom: -9px; left: 0; width: 100%; height: 2px; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+      text-shadow: 0 0 12px var(--accent-mid);
+    }
 
-    .view-content { display: none; min-height: 120px; margin-bottom: 24px; }
-    .view-content.active { display: block; }
-    .placeholder-text { font-family: var(--font-mono); font-size: 12px; color: var(--muted); display: flex; align-items: center; height: 100%; opacity: 0.7; }
+    /* ── Tab content ─────────────────────────────────────────── */
+    .tab-content { display: none; padding: 32px; }
+    .tab-content.active { display: block; }
 
-    .target-area { width: 100%; height: 300px; border: 1px dashed var(--muted); background: rgba(0, 0, 0, 0.3); position: relative; cursor: crosshair; margin-bottom: 24px; display: flex; align-items: center; justify-content: center; }
-    .target-area::before, .target-area::after { content: ''; position: absolute; background: rgba(58, 96, 128, 0.3); }
-    .target-area::before { width: 100%; height: 1px; top: 50%; }
-    .target-area::after { height: 100%; width: 1px; left: 50%; }
+    /* ── Shared components ───────────────────────────────────── */
+    .section-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border-dim); }
 
-    details.pid-settings { background: #060a0f; border: 1px solid var(--border); padding: 16px; border-radius: 2px; }
-    details.pid-settings summary { font-family: var(--font-mono); font-size: 14px; color: var(--accent); cursor: pointer; letter-spacing: 0.1em; outline: none; }
-    .pid-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed var(--muted); }
-    .pid-col h3 { font-family: var(--font-ui); font-size: 16px; color: var(--text); letter-spacing: 0.1em; margin-bottom: 12px; text-transform: uppercase; }
-    .pid-field { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
-    .pid-field input { background: #080c10; border: 1px solid var(--border); color: var(--accent); font-family: var(--font-mono); padding: 6px 8px; width: 80px; outline: none; text-align: right; }
-    .pid-field input:focus { border-color: var(--accent); }
-    
-    .btn-update { width: 100%; margin-top: 24px; padding: 12px 0; font-size: 13px; }
+    .btn {
+      font-family: var(--font-ui);
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      border-radius: 1px;
+      padding: 14px 24px;
+      cursor: pointer;
+      transition: background 0.15s, opacity 0.15s, box-shadow 0.15s;
+      border: 1px solid;
+    }
+    .btn:active:not(:disabled) { filter: brightness(0.75); }
+    .btn:disabled { opacity: 0.28; cursor: not-allowed; }
 
-    .status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 24px; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.08em; }
-    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.3s; }
-    .status-dot.running { background: var(--accent); box-shadow: 0 0 10px var(--accent); } /* Animation removed */
-    .status-dot.stopped { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
-    
-    /* Fixed width prevents horizontal shifting when text changes */
-    #status-text { color: var(--text); display: inline-block; min-width: 65px; } 
+    .btn-accent {
+      background: transparent;
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+    .btn-accent:hover:not(:disabled) {
+      background: var(--accent-dim);
+      box-shadow: 0 0 16px var(--accent-dim);
+    }
 
-    .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border-color: var(--danger);
+    }
+    .btn-danger:hover:not(:disabled) { background: var(--danger-dim); }
 
-    /* Simplified Button CSS */
-    .btn { font-family: var(--font-ui); font-weight: 600; font-size: 15px; letter-spacing: 0.2em; text-transform: uppercase; border: none; border-radius: 2px; padding: 18px 0; cursor: pointer; transition: background-color 0.2s, opacity 0.2s; }
-    .btn:active { filter: brightness(0.8); } /* Safer active state than scaling */
-    .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .btn-warn {
+      background: transparent;
+      color: var(--warn);
+      border-color: var(--warn);
+    }
+    .btn-warn:hover:not(:disabled) { background: var(--warn-dim); }
 
-    .btn-start { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-    .btn-start:hover:not(:disabled) { background: var(--accent-dim); }
+    .btn-full { width: 100%; }
 
-    .btn-stop { background: transparent; color: var(--danger); border: 1px solid var(--danger); }
-    .btn-stop:hover:not(:disabled) { background: var(--danger-dim); }
+    .field-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .field-row label { letter-spacing: 0.08em; }
 
-    .log-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.15em; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
-    .log { background: #060a0f; border: 1px solid var(--border); border-radius: 2px; padding: 12px 14px; font-family: var(--font-mono); font-size: 12px; color: var(--muted); height: 80px; overflow-y: scroll; display: flex; flex-direction: column; gap: 4px; } /* Always show log scrollbar */
-    .log-entry.ok  { color: var(--accent); }
-    .log-entry.err { color: var(--danger); }
+    input[type="number"],
+    input[type="text"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--accent);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      padding: 7px 10px;
+      outline: none;
+      text-align: right;
+      border-radius: 1px;
+      transition: border-color 0.15s;
+      -moz-appearance: textfield;
+    }
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+    input[type="number"]:focus,
+    input[type="text"]:focus { border-color: var(--accent); }
+
+    /* ── Status row ──────────────────────────────────────────── */
+    .status-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: 0.1em;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      transition: background 0.3s, box-shadow 0.3s;
+      flex-shrink: 0;
+    }
+    .status-dot.running { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .status-dot.stopped { background: var(--danger);  box-shadow: 0 0 6px var(--danger); }
+    .status-dot.idle    { background: var(--warn);    box-shadow: 0 0 6px var(--warn); }
+    .status-label { color: var(--text); min-width: 70px; }
+
+    /* ══════════════════════════════════════════════════════════
+       AUTO TAB
+    ══════════════════════════════════════════════════════════ */
+
+    .auto-layout {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 24px;
+    }
+
+    /* Maze snapshot image area */
+    .maze-frame {
+      border: 1px solid var(--border);
+      background: #060a0f;
+      aspect-ratio: 4/3;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .maze-frame img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    .maze-frame .no-image {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+      line-height: 1.8;
+      padding: 16px;
+    }
+    .maze-frame .snap-label {
+      position: absolute;
+      top: 8px; left: 10px;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+    }
+
+    /* Right column */
+    .auto-sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+    .sidebar-block {
+      background: var(--surface);
+      border: 1px solid var(--border-dim);
+      padding: 18px;
+    }
+
+    .target-inputs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .target-field { display: flex; flex-direction: column; gap: 6px; }
+    .target-field label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+    }
+    .target-field input {
+      width: 100%;
+      text-align: center;
+      font-size: 22px;
+      padding: 10px 6px;
+    }
+
+    .run-status {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+    }
+
+    .btn-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .snapshot-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+    .snapshot-row .btn { flex: 1; padding: 10px 0; font-size: 11px; }
+
+    /* ══════════════════════════════════════════════════════════
+       CALIBRATION TAB
+    ══════════════════════════════════════════════════════════ */
+
+    .calib-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .servo-block { background: var(--surface); border: 1px solid var(--border-dim); padding: 20px; }
+    .servo-title {
+      font-family: var(--font-ui);
+      font-weight: 600;
+      font-size: 15px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+    .servo-id {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 16px;
+    }
+
+    /* Current angle readout */
+    .servo-readout {
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 36px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+      line-height: 1;
+    }
+    .servo-readout-label {
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      margin-bottom: 16px;
+    }
+
+    /* Nudge buttons: ◀ ▶ layout */
+    .nudge-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+    .nudge-row .center-val {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      text-align: center;
+    }
+    .btn-nudge {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      padding: 10px 0;
+      letter-spacing: 0;
+    }
+
+    /* Step size selector */
+    .step-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+    .step-btn {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 4px 10px;
+      cursor: pointer;
+      letter-spacing: 0.08em;
+      border-radius: 1px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .step-btn.active, .step-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    .btn-reset-servo { padding: 9px 0; font-size: 11px; margin-bottom: 8px; }
+
+    /* PID block */
+    .pid-block {
+      background: var(--surface);
+      border: 1px solid var(--border-dim);
+      padding: 20px;
+      grid-column: 1 / -1;
+    }
+
+    .pid-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0 40px;
+      margin-bottom: 18px;
+    }
+    .pid-axis-title {
+      font-family: var(--font-ui);
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text);
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border-dim);
+    }
+    .pid-field { margin-bottom: 8px; }
+    .pid-field .field-row { margin-bottom: 0; }
+    .pid-field input { width: 90px; }
+
+    .zero-block {
+      background: var(--surface);
+      border: 1px solid var(--border-dim);
+      padding: 20px;
+      grid-column: 1 / -1;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+    }
+    .zero-desc {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.7;
+      letter-spacing: 0.05em;
+    }
+    .zero-desc strong { color: var(--text); display: block; margin-bottom: 4px; font-family: var(--font-ui); font-size: 13px; letter-spacing: 0.1em; }
+
+    /* ── Event log ────────────────────────────────────────────── */
+    .log-wrap { padding: 0 32px 32px; }
+    .log-label {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .log {
+      background: #040709;
+      border: 1px solid var(--border-dim);
+      padding: 10px 14px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--muted);
+      height: 90px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .log::-webkit-scrollbar { width: 6px; }
+    .log::-webkit-scrollbar-track { background: transparent; }
+    .log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    .log-entry       { color: var(--muted); }
+    .log-entry.ok    { color: var(--accent); }
+    .log-entry.err   { color: var(--danger); }
+    .log-entry.warn  { color: var(--warn); }
+
+    /* ── Offline popup ────────────────────────────────────────── */
+    .popup-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(4, 7, 10, 0.75);
+      backdrop-filter: blur(3px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 500;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s;
+    }
+    .popup-overlay.visible {
+      opacity: 1;
+      pointer-events: all;
+    }
+    .popup {
+      background: var(--panel);
+      border: 1px solid var(--danger);
+      padding: 32px 36px;
+      width: min(420px, 90vw);
+      position: relative;
+      box-shadow: 0 0 0 1px #0a1e33, 0 0 40px rgba(255,59,92,0.12);
+    }
+    .popup::before, .popup::after,
+    .popup .pop-tr, .popup .pop-bl {
+      content: '';
+      position: absolute;
+      width: 12px; height: 12px;
+      border-color: var(--danger);
+      border-style: solid;
+    }
+    .popup::before { top: -1px;    left: -1px;   border-width: 2px 0 0 2px; }
+    .popup::after  { bottom: -1px; right: -1px;  border-width: 0 2px 2px 0; }
+    .popup .pop-tr { top: -1px;    right: -1px;  border-width: 2px 2px 0 0; }
+    .popup .pop-bl { bottom: -1px; left: -1px;   border-width: 0 0 2px 2px; }
+    .popup-icon {
+      font-size: 22px;
+      margin-bottom: 12px;
+      color: var(--danger);
+    }
+    .popup-title {
+      font-family: var(--font-ui);
+      font-weight: 700;
+      font-size: 18px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #e8f4ff;
+      margin-bottom: 8px;
+    }
+    .popup-body {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.8;
+      letter-spacing: 0.05em;
+      margin-bottom: 24px;
+    }
+    .popup-body code {
+      color: var(--accent);
+      background: var(--bg);
+      padding: 1px 6px;
+      border: 1px solid var(--border-dim);
+      font-size: 11px;
+    }
+    .popup-dismiss {
+      width: 100%;
+      padding: 12px 0;
+      font-size: 13px;
+    }
+
+    /* ── Responsive ───────────────────────────────────────────── */
+    @media (max-width: 640px) {
+      .auto-layout  { grid-template-columns: 1fr; }
+      .calib-layout { grid-template-columns: 1fr; }
+      .zero-block   { flex-direction: column; align-items: flex-start; }
+    }
   </style>
 </head>
 <body>
+
+  <!-- Offline popup -->
+  <div class="popup-overlay" id="offline-overlay">
+    <div class="popup">
+      <div class="pop-tr"></div>
+      <div class="pop-bl"></div>
+      <div class="popup-icon">⚠</div>
+      <div class="popup-title">Backend Offline</div>
+      <div class="popup-body">
+        The C++ control program is not reachable at<br>
+        <code>:8080</code> on this host.<br><br>
+        Start it on the Raspberry Pi with:<br>
+        <code>sudo ./build/MTO_maze</code><br><br>
+        The interface will reconnect automatically.
+      </div>
+      <button class="btn btn-danger popup-dismiss" onclick="dismissOfflinePopup()">
+        ✕ &nbsp; Dismiss
+      </button>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-title">MTO·<span>MAZE</span></div>
+    <div class="header-meta">
+      <div>raspberry-pi · <span id="host-display"></span></div>
+      <div class="backend-status">
+        <div class="backend-dot" id="backend-dot"></div>
+        <span id="backend-label">checking…</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main panel -->
   <div class="panel">
     <div class="corner-tr"></div>
     <div class="corner-bl"></div>
 
-    <div class="tag">SYS · CTRL · v1.3</div>
-    <h1>Control Panel</h1>
-    <p class="subtitle">raspberry-pi · local endpoint</p>
-
-    <div class="tabs">
-      <button class="tab-btn active" onclick="switchTab('CONTROLLER')">CONTROLLER</button>
-      <button class="tab-btn" onclick="switchTab('AUTO')">AUTO</button>
-      <button class="tab-btn" onclick="switchTab('MANUAL')">MANUAL</button>
-      <button class="tab-btn" onclick="switchTab('CALIB')">CALIB</button>
+    <!-- Tab bar -->
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="AUTO">AUTO</button>
+      <button class="tab-btn"        data-tab="CALIB">CALIB</button>
     </div>
 
-    <div id="view-CONTROLLER" class="view-content active">
-      <div class="target-area" id="target-area">
-        <span class="placeholder-text">[ Awaiting coordinate selection logic ]</span>
-      </div>
+    <!-- ═══════════════════════════════════════════════════
+         AUTO TAB
+    ═══════════════════════════════════════════════════ -->
+    <div class="tab-content active" id="tab-AUTO">
+      <div class="auto-layout">
 
-      <details class="pid-settings">
-        <summary>▶ PID TUNING PARAMETERS</summary>
-        <div class="pid-grid">
-          <div class="pid-col">
-            <h3>PID - X</h3>
-            <div class="pid-field"><label>Kp</label><input type="number" id="kpx" step="0.01" value="0.00"></div>
-            <div class="pid-field"><label>Ki</label><input type="number" id="kix" step="0.01" value="0.00"></div>
-            <div class="pid-field"><label>Kd</label><input type="number" id="kdx" step="0.01" value="0.00"></div>
+        <!-- Left: maze snapshot -->
+        <div>
+          <div class="section-label">maze snapshot</div>
+          <div class="maze-frame" id="maze-frame">
+            <span class="snap-label">latest · /maze_snapshot.jpg</span>
+            <div class="no-image" id="no-image-msg">
+              No snapshot available.<br>
+              Start the C++ backend,<br>
+              then click Refresh.
+            </div>
+            <!--
+              The <img> is hidden by default; JS shows it once the snapshot loads.
+              src is set dynamically to bust cache.
+            -->
+            <img id="maze-img" src="" alt="Maze snapshot" style="display:none;"
+                 onerror="onSnapshotError()" onload="onSnapshotLoad()"/>
           </div>
-          <div class="pid-col">
-            <h3>PID - Y</h3>
-            <div class="pid-field"><label>Kp</label><input type="number" id="kpy" step="0.01" value="0.00"></div>
-            <div class="pid-field"><label>Ki</label><input type="number" id="kiy" step="0.01" value="0.00"></div>
-            <div class="pid-field"><label>Kd</label><input type="number" id="kdy" step="0.01" value="0.00"></div>
+          <div class="snapshot-row" style="margin-top:10px;">
+            <button class="btn btn-accent" onclick="refreshSnapshot()">↻ Refresh Snapshot</button>
+            <span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);" id="snap-ts"></span>
           </div>
         </div>
-        <button class="btn btn-start btn-update" onclick="updatePID()">⟳ Update Parameters</button>
-      </details>
+
+        <!-- Right sidebar -->
+        <div class="auto-sidebar">
+
+          <!-- Target position -->
+          <div class="sidebar-block">
+            <div class="section-label">target cell</div>
+            <div class="target-inputs">
+              <div class="target-field">
+                <label>X</label>
+                <!--
+                  endpoint: GET /command?action=start&x={val}&y={val}
+                  Range 0–7 for the 8×8 grid (matches maze.getConfig()[x][y])
+                -->
+                <input type="number" id="target-x" min="0" max="7" value="0" placeholder="0">
+              </div>
+              <div class="target-field">
+                <label>Y</label>
+                <input type="number" id="target-y" min="0" max="7" value="0" placeholder="0">
+              </div>
+            </div>
+            <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.08em;margin-top:6px;">
+              grid 0–7 · (0,0) = top-left
+            </div>
+          </div>
+
+          <!-- Run controls -->
+          <div class="sidebar-block">
+            <div class="run-status">
+              <div class="status-row">
+                <div class="status-dot stopped" id="run-dot"></div>
+                <span class="status-label" id="run-label">STOPPED</span>
+              </div>
+            </div>
+            <div class="btn-grid-2">
+              <!--
+                START  → GET /command?action=start&x={x}&y={y}
+                         C++ reads x, y, sets targetX/targetY, sets should_start flag
+                         Response: "OK" (200) or error string (500)
+              -->
+              <button class="btn btn-accent" id="btn-start" onclick="cmdStart()">▶ START</button>
+              <!--
+                STOP   → GET /command?action=stop
+                         C++ sets should_stop flag, exits inner while loop
+                         Response: "OK"
+              -->
+              <button class="btn btn-danger" id="btn-stop" onclick="cmdStop()" disabled>■ STOP</button>
+            </div>
+          </div>
+
+        </div><!-- /auto-sidebar -->
+      </div><!-- /auto-layout -->
+    </div><!-- /tab-AUTO -->
+
+    <!-- ═══════════════════════════════════════════════════
+         CALIB TAB
+    ═══════════════════════════════════════════════════ -->
+    <div class="tab-content" id="tab-CALIB">
+      <div class="calib-layout">
+
+        <!-- Servo X (ID 2) -->
+        <div class="servo-block">
+          <div class="servo-title">Servo X</div>
+          <div class="servo-id">// servo id 2 · PWM channel</div>
+
+          <div class="servo-readout" id="readout-x">0</div>
+          <div class="servo-readout-label">current angle (°)</div>
+
+          <!--
+            Step size: how many degrees each nudge press sends
+            Stored in JS variable stepX; no backend involvement
+          -->
+          <div class="step-row">
+            STEP &nbsp;
+            <button class="step-btn active" data-axis="x" data-val="1">1°</button>
+            <button class="step-btn"        data-axis="x" data-val="5">5°</button>
+            <button class="step-btn"        data-axis="x" data-val="10">10°</button>
+          </div>
+
+          <div class="nudge-row">
+            <!--
+              NUDGE  → GET /command?action=servo&id=2&pulse={pulse}
+                        pulse = angle_to_pulse(angle)  [1000 + angle*1000/180]
+                        C++ calls ServoMotor_Control(2, pulse) immediately
+                        Response: "OK"
+            -->
+            <button class="btn btn-accent btn-nudge" onclick="nudge('x', -1)">◀</button>
+            <div class="center-val" id="nudge-x-deg">0°</div>
+            <button class="btn btn-accent btn-nudge" onclick="nudge('x', +1)">▶</button>
+          </div>
+
+          <!--
+            RESET  → GET /command?action=servo&id=2&pulse=1500
+                      Centers servo (90°), resets local angle to 0
+          -->
+          <button class="btn btn-warn btn-full btn-reset-servo" onclick="resetServo('x', 2)">
+            ⊙ Reset to Center
+          </button>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.07em;margin-top:4px;">
+            Tilts the maze board along the X axis
+          </div>
+        </div>
+
+        <!-- Servo Y (ID 3) -->
+        <div class="servo-block">
+          <div class="servo-title">Servo Y</div>
+          <div class="servo-id">// servo id 3 · PWM channel</div>
+
+          <div class="servo-readout" id="readout-y">0</div>
+          <div class="servo-readout-label">current angle (°)</div>
+
+          <div class="step-row">
+            STEP &nbsp;
+            <button class="step-btn active" data-axis="y" data-val="1">1°</button>
+            <button class="step-btn"        data-axis="y" data-val="5">5°</button>
+            <button class="step-btn"        data-axis="y" data-val="10">10°</button>
+          </div>
+
+          <div class="nudge-row">
+            <button class="btn btn-accent btn-nudge" onclick="nudge('y', -1)">◀</button>
+            <div class="center-val" id="nudge-y-deg">0°</div>
+            <button class="btn btn-accent btn-nudge" onclick="nudge('y', +1)">▶</button>
+          </div>
+
+          <button class="btn btn-warn btn-full btn-reset-servo" onclick="resetServo('y', 3)">
+            ⊙ Reset to Center
+          </button>
+          <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.07em;margin-top:4px;">
+            Tilts the maze board along the Y axis
+          </div>
+        </div>
+
+        <!-- PID block (full width) -->
+        <div class="pid-block">
+          <div class="section-label">PID constants</div>
+          <div class="pid-grid">
+            <div>
+              <div class="pid-axis-title">Axis X &nbsp;<span style="color:var(--muted);font-weight:400;font-size:11px;">(servo 2)</span></div>
+              <!--
+                PID endpoint: GET /api/pid?kpx=…&kix=…&kdx=…&kpy=…&kiy=…&kdy=…
+                C++ parses all six floats, writes them into a mutex-protected
+                PIDController struct that the main loop reads on each iteration.
+                Response: "OK"
+              -->
+              <div class="pid-field">
+                <div class="field-row"><label>Kp</label><input type="number" id="kpx" step="0.01" value="0.50" min="0"></div>
+              </div>
+              <div class="pid-field">
+                <div class="field-row"><label>Ki</label><input type="number" id="kix" step="0.001" value="0.00" min="0"></div>
+              </div>
+              <div class="pid-field">
+                <div class="field-row"><label>Kd</label><input type="number" id="kdx" step="0.01" value="0.10" min="0"></div>
+              </div>
+            </div>
+            <div>
+              <div class="pid-axis-title">Axis Y &nbsp;<span style="color:var(--muted);font-weight:400;font-size:11px;">(servo 3)</span></div>
+              <div class="pid-field">
+                <div class="field-row"><label>Kp</label><input type="number" id="kpy" step="0.01" value="0.50" min="0"></div>
+              </div>
+              <div class="pid-field">
+                <div class="field-row"><label>Ki</label><input type="number" id="kiy" step="0.001" value="0.00" min="0"></div>
+              </div>
+              <div class="pid-field">
+                <div class="field-row"><label>Kd</label><input type="number" id="kdy" step="0.01" value="0.10" min="0"></div>
+              </div>
+            </div>
+          </div>
+          <button class="btn btn-accent btn-full" onclick="updatePID()">⟳ Push PID to Hardware</button>
+        </div>
+
+        <!-- Save zero position (full width) -->
+        <!--
+          SAVE ZERO → GET /api/save_zero
+                       C++ saves current servo angles (angleX, angleY) to
+                       zero_offset.cfg  as plain text:  "angleX angleY"
+                       These are read back on next startup as zeroX / zeroY offsets
+                       Response: "OK  {angleX} {angleY}"
+        -->
+        <div class="zero-block">
+          <div class="zero-desc">
+            <strong>Save Zero Position</strong>
+            Position both servos at the physical level (maze board flat).<br>
+            Saving records the current angles as the zero-offset for both axes.<br>
+            Takes effect on the next program start.
+          </div>
+          <button class="btn btn-warn" style="white-space:nowrap;" onclick="saveZero()">
+            ✦ Save Zero
+          </button>
+        </div>
+
+      </div><!-- /calib-layout -->
+    </div><!-- /tab-CALIB -->
+
+    <!-- Event log (always visible) -->
+    <div class="log-wrap">
+      <div class="log-label">// event log</div>
+      <div class="log" id="log"></div>
     </div>
 
-    <div id="view-AUTO" class="view-content">
-      <div class="status-row">
-        <div class="status-dot" id="status-dot"></div>
-        <span id="status-text">STOPPED</span>
-      </div>
-
-      <div class="controls">
-        <button class="btn btn-start" id="btn-start" onclick="sendCommand('start')">▶ Start</button>
-        <button class="btn btn-stop"  id="btn-stop"  onclick="sendCommand('stop')" disabled>■ Stop</button>
-      </div>
-    </div>
-
-    <div id="view-MANUAL" class="view-content">
-      <div class="placeholder-text">> Manual override interface offline. Connect joystick...</div>
-    </div>
-
-    <div id="view-CALIB" class="view-content">
-      <div class="placeholder-text">> Calibration routine offline. Prepare for IMU leveling...</div>
-    </div>
-
-    <div class="log-label">// event log</div>
-    <div class="log" id="log"></div>
-  </div>
+  </div><!-- /panel -->
 
   <script>
-    const log = document.getElementById('log');
-    const dot = document.getElementById('status-dot');
-    const statusText = document.getElementById('status-text');
-    const btnStart = document.getElementById('btn-start');
-    const btnStop  = document.getElementById('btn-stop');
+    /* ═══════════════════════════════════════════════════════════
+       CONFIG
+       Change BACKEND if your Pi IP or port differs.
+    ═══════════════════════════════════════════════════════════ */
+    const BACKEND = `http://${location.hostname}:8080`;
+
+    // Show actual hostname/IP in header
+    document.getElementById('host-display').textContent = location.hostname;
+
+    /* ═══════════════════════════════════════════════════════════
+       STATE
+    ═══════════════════════════════════════════════════════════ */
+    let isRunning  = false;
+    let backendUp  = null;
+
+    // Local servo angle tracking (degrees, integer).
+    // These mirror what we believe the hardware is at.
+    // Reset to 0 on page load — not persisted.
+    let angleX = 0;
+    let angleY = 0;
+    let stepX  = 1;   // degrees per nudge press
+    let stepY  = 1;
+
+    /* ═══════════════════════════════════════════════════════════
+       LOGGING
+    ═══════════════════════════════════════════════════════════ */
+    const logEl = document.getElementById('log');
 
     function addLog(msg, type = '') {
-      const now = new Date().toTimeString().slice(0,8);
-      const el = document.createElement('div');
+      const ts  = new Date().toTimeString().slice(0, 8);
+      const el  = document.createElement('div');
       el.className = 'log-entry' + (type ? ' ' + type : '');
-      el.textContent = `[${now}] ${msg}`;
-      log.appendChild(el);
-      log.scrollTop = log.scrollHeight;
+      el.textContent = `[${ts}]  ${msg}`;
+      logEl.appendChild(el);
+      logEl.scrollTop = logEl.scrollHeight;
     }
 
-    function setRunning(running) {
-      dot.className = 'status-dot ' + (running ? 'running' : 'stopped');
-      statusText.textContent = running ? 'RUNNING' : 'STOPPED';
-      btnStart.disabled = running;
-      btnStop.disabled  = !running;
+    /* ═══════════════════════════════════════════════════════════
+       OFFLINE POPUP
+    ═══════════════════════════════════════════════════════════ */
+    let popupDismissed = false;
+
+    function showOfflinePopup() {
+      if (popupDismissed) return;
+      document.getElementById('offline-overlay').classList.add('visible');
     }
 
-    function switchTab(mode) {
-      document.querySelectorAll('.tab-btn').forEach(btn => {
-        btn.classList.remove('active');
-        if (btn.innerText === mode) btn.classList.add('active');
+    function dismissOfflinePopup() {
+      popupDismissed = true;
+      document.getElementById('offline-overlay').classList.remove('visible');
+    }
+
+    // Re-show popup if backend goes offline again after being online
+    function onBackendOffline() {
+      popupDismissed = false;
+      showOfflinePopup();
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       BACKEND HEALTH CHECK
+       Polls GET /status every 2 s.
+
+       Expected C++ response (plain text or JSON — plain text kept simple):
+         "running"   → backend up, loop active
+         "idle"      → backend up, loop stopped
+       Connection refused / timeout → backend offline.
+
+       C++ endpoint: GET /status
+         Return "running" if should_start is true and loop is executing,
+         otherwise return "idle".
+    ═══════════════════════════════════════════════════════════ */
+    function setBackendStatus(up) {
+      const dot   = document.getElementById('backend-dot');
+      const label = document.getElementById('backend-label');
+      if (up === backendUp) return;   // no DOM change needed
+      backendUp = up;
+      dot.className   = 'backend-dot ' + (up ? 'online' : 'offline');
+      label.textContent = up ? 'ONLINE · :8080' : 'OFFLINE';
+      label.className = up ? 'online' : 'offline';
+      addLog(up ? 'Backend connected.' : 'Backend unreachable.', up ? 'ok' : 'err');
+      if (!up) onBackendOffline();
+      else { popupDismissed = false; document.getElementById('offline-overlay').classList.remove('visible'); }
+    }
+
+    async function pollStatus() {
+      try {
+        const res  = await fetch(`${BACKEND}/status`, { signal: AbortSignal.timeout(1500) });
+        const text = (await res.text()).trim().toLowerCase();
+        setBackendStatus(true);
+        // hide popup immediately when backend comes back online
+        document.getElementById('offline-overlay').classList.remove('visible');
+
+        // Sync running state if backend reports it
+        // (guards against page reload mid-run)
+        if (text === 'running' && !isRunning) setRunning(true, false);
+        if (text === 'idle'    &&  isRunning) setRunning(false, false);
+      } catch {
+        setBackendStatus(false);
+        if (isRunning) setRunning(false, false);
+      }
+    }
+
+    setInterval(pollStatus, 2000);
+    // Show popup on first check if already offline
+    pollStatus().then(() => { if (!backendUp) showOfflinePopup(); });
+
+    /* ═══════════════════════════════════════════════════════════
+       TABS
+    ═══════════════════════════════════════════════════════════ */
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+        btn.classList.add('active');
+        document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
       });
+    });
 
-      document.querySelectorAll('.view-content').forEach(view => {
-        view.classList.remove('active');
-      });
-      document.getElementById(`view-${mode}`).classList.add('active');
-
-      setMode(mode);
-    }
-
-    async function setMode(mode) {
-      addLog(`Requesting mode change: ${mode}...`);
+    /* ═══════════════════════════════════════════════════════════
+       GENERIC FETCH HELPER
+       Returns response text, or throws on network/HTTP error.
+    ═══════════════════════════════════════════════════════════ */
+    async function apiFetch(url, logLabel) {
+      addLog(`${logLabel}…`);
       try {
-        const res = await fetch(`http://${location.hostname}:8080/api/mode?set=${mode}`, { method: 'POST' });
-        const text = await res.text();
-        if (res.ok) { addLog(`Mode set to ${mode}`, 'ok'); } 
-        else { addLog(`Error ${res.status}: ${text}`, 'err'); }
-      } catch (e) { addLog(`Network failed: ${e.message}`, 'err'); }
-    }
-
-    async function updatePID() {
-      const kpx = document.getElementById('kpx').value;
-      const kix = document.getElementById('kix').value;
-      const kdx = document.getElementById('kdx').value;
-      const kpy = document.getElementById('kpy').value;
-      const kiy = document.getElementById('kiy').value;
-      const kdy = document.getElementById('kdy').value;
-
-      const queryParams = new URLSearchParams({ kpx, kix, kdx, kpy, kiy, kdy }).toString();
-
-      addLog('Pushing PID parameters to hardware...');
-      try {
-        const res = await fetch(`http://${location.hostname}:8080/api/pid?${queryParams}`, { method: 'POST' });
-        const text = await res.text();
-        if (res.ok) { addLog('PID settings updated successfully.', 'ok'); } 
-        else { addLog(`Error ${res.status}: ${text}`, 'err'); }
-      } catch (e) { addLog(`Failed to push PID data: ${e.message}`, 'err'); }
-    }
-
-    async function sendCommand(cmd) {
-      addLog(`Sending command: ${cmd.toUpperCase()}…`);
-      try {
-        const res = await fetch(`http://${location.hostname}:8080/command?action=${cmd}`);
-        const text = await res.text();
+        const res  = await fetch(url, { signal: AbortSignal.timeout(3000) });
+        const text = (await res.text()).trim();
         if (res.ok) {
-          addLog(`Response: ${text}`, 'ok');
-          setRunning(cmd === 'start');
-        } else { addLog(`Error ${res.status}: ${text}`, 'err'); }
-      } catch (e) { addLog(`Request failed: ${e.message}`, 'err'); }
+          addLog(`✓ ${text || 'OK'}`, 'ok');
+          setBackendStatus(true);
+          return text;
+        } else {
+          addLog(`✗ HTTP ${res.status}: ${text}`, 'err');
+          return null;
+        }
+      } catch (e) {
+        addLog(`✗ ${e.message}`, 'err');
+        setBackendStatus(false);
+        return null;
+      }
     }
 
-    addLog('Interface ready. System standing by.');
+    /* ═══════════════════════════════════════════════════════════
+       AUTO TAB — SNAPSHOT
+    ═══════════════════════════════════════════════════════════ */
+
+    /*
+      The C++ program writes a JPEG to /var/www/html/maze_snapshot.jpg
+      using cv::imwrite() right after readMazeConfig().
+      nginx serves it statically. We bust cache with a timestamp query param.
+    */
+    function refreshSnapshot() {
+      const img    = document.getElementById('maze-img');
+      const noMsg  = document.getElementById('no-image-msg');
+      const tsEl   = document.getElementById('snap-ts');
+
+      img.style.display = 'none';
+      noMsg.style.display = 'block';
+      noMsg.textContent = 'Loading…';
+
+      img.src = `/maze_snapshot.jpg?t=${Date.now()}`;
+    }
+
+    function onSnapshotLoad() {
+      document.getElementById('maze-img').style.display  = 'block';
+      document.getElementById('no-image-msg').style.display = 'none';
+      const now = new Date().toTimeString().slice(0, 8);
+      document.getElementById('snap-ts').textContent = `loaded ${now}`;
+      addLog('Maze snapshot refreshed.', 'ok');
+    }
+
+    function onSnapshotError() {
+      const noMsg = document.getElementById('no-image-msg');
+      noMsg.style.display = 'block';
+      noMsg.textContent = 'Snapshot not found.\nStart the backend first.';
+      document.getElementById('maze-img').style.display = 'none';
+      document.getElementById('snap-ts').textContent = '';
+      addLog('Snapshot unavailable — backend not started?', 'warn');
+    }
+
+    // Try loading on page open
+    refreshSnapshot();
+
+    /* ═══════════════════════════════════════════════════════════
+       AUTO TAB — RUN CONTROL
+    ═══════════════════════════════════════════════════════════ */
+    function setRunning(state, updateBackend = true) {
+      isRunning = state;
+      const dot   = document.getElementById('run-dot');
+      const label = document.getElementById('run-label');
+      dot.className = 'status-dot ' + (state ? 'running' : 'stopped');
+      label.textContent = state ? 'RUNNING' : 'STOPPED';
+      document.getElementById('btn-start').disabled = state;
+      document.getElementById('btn-stop').disabled  = !state;
+    }
+
+    async function cmdStart() {
+      const x = parseInt(document.getElementById('target-x').value, 10);
+      const y = parseInt(document.getElementById('target-y').value, 10);
+
+      if (isNaN(x) || isNaN(y) || x < 0 || x > 7 || y < 0 || y > 7) {
+        addLog('Invalid target: X and Y must be integers 0–7.', 'err');
+        return;
+      }
+      /*
+        GET /command?action=start&x={x}&y={y}
+        C++ must:
+          1. Parse x and y from query string
+          2. Set targetX = x, targetY = y
+          3. Set should_start = true
+          4. Return "OK"
+      */
+      const res = await apiFetch(
+        `${BACKEND}/command?action=start&x=${x}&y=${y}`,
+        `Starting — target (${x},${y})`
+      );
+      if (res !== null) setRunning(true);
+    }
+
+    async function cmdStop() {
+      /*
+        GET /command?action=stop
+        C++ must:
+          1. Set should_stop = true  (main loop checks and breaks)
+          2. Return "OK"
+      */
+      const res = await apiFetch(`${BACKEND}/command?action=stop`, 'Sending stop');
+      if (res !== null) setRunning(false);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       CALIB TAB — SERVO NUDGE
+    ═══════════════════════════════════════════════════════════ */
+
+    // Step size buttons
+    document.querySelectorAll('.step-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const axis = btn.dataset.axis;
+        const val  = parseInt(btn.dataset.val, 10);
+        // Deactivate siblings for this axis
+        document.querySelectorAll(`.step-btn[data-axis="${axis}"]`).forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (axis === 'x') stepX = val;
+        else              stepY = val;
+      });
+    });
+
+    function angleToPulse(angle) {
+      // Mirrors the C++ angle_to_pulse() in main_jen.cpp:
+      // 1000 + (angle * 1000) / 180
+      // angle is clamped to [0, 180]
+      const clamped = Math.max(0, Math.min(180, angle));
+      return Math.round(1000 + (clamped * 1000) / 180);
+    }
+
+    function updateReadout(axis, angle) {
+      document.getElementById(`readout-${axis}`).textContent = angle;
+      document.getElementById(`nudge-${axis}-deg`).textContent = `${angle}°`;
+    }
+
+    async function nudge(axis, direction) {
+      /*
+        direction: +1 or -1
+        GET /command?action=servo&id={servoId}&pulse={pulse}
+        C++ must:
+          1. Parse id (2 or 3) and pulse from query string
+          2. Call ServoMotor_Control(id, pulse) immediately
+          3. Return "OK"
+
+        Servo id mapping: X → 2, Y → 3  (from main_jen.cpp)
+        Angle is clamped to [0, 180] before converting to pulse.
+      */
+      const step    = axis === 'x' ? stepX : stepY;
+      const servoId = axis === 'x' ? 2 : 3;
+
+      let newAngle = (axis === 'x' ? angleX : angleY) + direction * step;
+      newAngle = Math.max(0, Math.min(180, newAngle));
+
+      const pulse = angleToPulse(newAngle);
+      const res   = await apiFetch(
+        `${BACKEND}/command?action=servo&id=${servoId}&pulse=${pulse}`,
+        `Servo ${axis.toUpperCase()} nudge → ${newAngle}°`
+      );
+
+      if (res !== null) {
+        if (axis === 'x') angleX = newAngle;
+        else              angleY = newAngle;
+        updateReadout(axis, newAngle);
+      }
+    }
+
+    async function resetServo(axis, servoId) {
+      // Center pulse = 1500 µs = 90°
+      const res = await apiFetch(
+        `${BACKEND}/command?action=servo&id=${servoId}&pulse=1500`,
+        `Servo ${axis.toUpperCase()} → center`
+      );
+      if (res !== null) {
+        if (axis === 'x') angleX = 90;
+        else              angleY = 90;
+        updateReadout(axis, 90);
+      }
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       CALIB TAB — PID UPDATE
+    ═══════════════════════════════════════════════════════════ */
+    async function updatePID() {
+      const fields = ['kpx','kix','kdx','kpy','kiy','kdy'];
+      const vals   = {};
+      for (const f of fields) {
+        const v = parseFloat(document.getElementById(f).value);
+        if (isNaN(v) || v < 0) {
+          addLog(`Invalid PID value for ${f.toUpperCase()}.`, 'err');
+          return;
+        }
+        vals[f] = v;
+      }
+      const qs = new URLSearchParams(vals).toString();
+      /*
+        GET /api/pid?kpx=…&kix=…&kdx=…&kpy=…&kiy=…&kdy=…
+        C++ must:
+          1. Parse all six floats
+          2. Lock a mutex, write values into a shared PIDParams struct
+          3. The main loop reads from this struct on each iteration
+          4. Return "OK"
+      */
+      await apiFetch(`${BACKEND}/api/pid?${qs}`, 'Pushing PID constants');
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       CALIB TAB — SAVE ZERO
+    ═══════════════════════════════════════════════════════════ */
+    async function saveZero() {
+      /*
+        GET /api/save_zero
+        C++ must:
+          1. Read current servo angles (tracked as integers in C++)
+          2. Write them to /var/www/html/zero_offset.cfg  (or any stable path)
+             Format: "angleX angleY\n"   (plain text, easy to parse)
+          3. Return "OK  {angleX} {angleY}"
+
+        On next program start, main_jen.cpp reads zero_offset.cfg to load
+        zeroX and zeroY, then subtracts these from all subsequent servo commands.
+      */
+      await apiFetch(`${BACKEND}/api/save_zero`, 'Saving zero position');
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       INIT
+    ═══════════════════════════════════════════════════════════ */
+    updateReadout('x', 0);
+    updateReadout('y', 0);
+    addLog('Interface ready. Waiting for backend…');
   </script>
+
 </body>
 </html>
