@@ -96,12 +96,14 @@ static void ws_respond(int fd, int status_code, const std::string& body) {
 
     std::ostringstream resp;
     resp << "HTTP/1.1 " << status_code << " " << status_text << "\r\n"
-         << "Content-Type: text/plain\r\n"
-         << "Access-Control-Allow-Origin: *\r\n"      // required: nginx (port 80) → backend (port 8080)
-         << "Connection: close\r\n"
-         << "Content-Length: " << body.size() << "\r\n"
-         << "\r\n"
-         << body;
+     << "Content-Type: text/plain\r\n"
+     << "Access-Control-Allow-Origin: *\r\n"
+     << "Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n"
+     << "Access-Control-Allow-Headers: Content-Type\r\n"
+     << "Connection: close\r\n"
+     << "Content-Length: " << body.size() << "\r\n"
+     << "\r\n"
+     << body;
 
     std::string r = resp.str();
     send(fd, r.c_str(), r.size(), MSG_NOSIGNAL);
@@ -117,6 +119,10 @@ static int ws_angle_to_pulse(int angle) {
    Request handler — called for every incoming HTTP request.
    ============================================================ */
 static void ws_handle_request(int client_fd, const std::string& raw) {
+    if (raw.find("OPTIONS") == 0) {
+        ws_respond(client_fd, 200, "");
+        return;
+    }
     // Extract the request line (first line only — all we need)
     std::string url;
     {
