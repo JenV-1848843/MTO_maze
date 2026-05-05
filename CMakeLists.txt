@@ -44,12 +44,7 @@ elseif(UNIX)
         message(STATUS "libgpiod not found - MTO_maze will not include servo control (Pi-specific)")
     endif()
 
-    add_executable(webApp
-        src/webBasedMain.cpp
-        src/pi2c.cpp
-	include/webcontrol.hpp
-	include/SystemConfig.hpp
-    )
+
 
     # MTO_maze sources (with conditional servo control)
     set(MTO_MAZE_SOURCES
@@ -72,8 +67,6 @@ elseif(UNIX)
     endif()
 
     add_executable(MTO_maze ${MTO_MAZE_SOURCES})
-
-    target_include_directories(webApp PRIVATE include)
     target_link_libraries(MTO_maze ${OpenCV_LIBS})
 
     if(GPIOD_FOUND)

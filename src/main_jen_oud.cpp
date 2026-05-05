@@ -21,18 +21,6 @@
 #include "../include/SystemConfig.hpp"
 #endif
 
-#include "../include/Webserver.hpp"
-
-std::atomic<bool>  ws_should_start{false};
-std::atomic<bool>  ws_should_stop{false};
-std::atomic<bool>  ws_is_running{false};
-std::atomic<int>   ws_target_x{0};
-std::atomic<int>   ws_target_y{0};
-std::atomic<int>   ws_servo_angle_x{0};
-std::atomic<int>   ws_servo_angle_y{0};
-std::mutex         ws_pid_mutex;
-WsPIDParams        ws_pid_params;
-
 static int angle_to_pulse(int angle) {
 	return 1000 + (angle * 1000) / 180;
 }
@@ -87,6 +75,9 @@ int main(int argc, char* argv[]) {
 	ServoMotor_Control(3, angle_to_pulse(0));
 
 	PIDController pid_x, pid_y;
+	pid_x.kp = pid_y.kp = PID_KP;
+	pid_x.ki = pid_y.ki = PID_KI;
+	pid_x.kd = pid_y.kd = PID_KD;
 	pid_x.output_limit = pid_y.output_limit = PID_OUTPUT_LIMIT;
 	#endif
 
@@ -173,12 +164,6 @@ int main(int argc, char* argv[]) {
 
 		#ifdef SERVO_CONTROL_ENABLED
 		if (pos.found && c->next != nullptr) {
-			// Re-read PID constants from web interface on each iteration
-			{
-				std::lock_guard<std::mutex> lock(ws_pid_mutex);
-				pid_x.kp = ws_pid_params.kpx; pid_x.ki = ws_pid_params.kix; pid_x.kd = ws_pid_params.kdx;
-				pid_y.kp = ws_pid_params.kpy; pid_y.ki = ws_pid_params.kiy; pid_y.kd = ws_pid_params.kdy;
-			}
 			// Target: centre of the next waypoint cell in mm
 			float next_mm_x = (c->next->getX() + 0.5f) * innerWallLength;
 			float next_mm_y = (c->next->getY() + 0.5f) * innerWallLength;
