@@ -205,19 +205,44 @@ int main(int argc, char* argv[]) {
 		std::cout << "moving " << mms << " mms to " << to_string(dir) << std::endl;
 
 		if (pos.found && c->next != nullptr) {
+			double error_x;
+			double error_y;
+			switch (dir)
+			{
+			case Direction::UP:
+				error_x = -1.0;
+				error_y = -mms;
+				break;
+			case Direction::DOWN:
+				error_x = -1.0;
+				error_y = mms;
+				break;
+			case Direction::LEFT:
+				error_x = mms;
+				error_y = 0.0;
+				break;
+			case Direction::RIGHT:
+				error_x = -mms;
+				error_y = 0.0;
+				break;
+			default:
+				error_x = 0.0;
+				error_y = 0.0;
+				break;
+			}
 			// Re-read PID constants from web interface on each iteration
 			{
 				std::lock_guard<std::mutex> lock(ws_pid_mutex);
 				pid_x.kp = ws_pid_params.kpx; pid_x.ki = ws_pid_params.kix; pid_x.kd = ws_pid_params.kdx;
 				pid_y.kp = ws_pid_params.kpy; pid_y.ki = ws_pid_params.kiy; pid_y.kd = ws_pid_params.kdy;
 			}
-			// Target: centre of the next waypoint cell in mm
-			float next_mm_x = (c->next->getX() + 0.5f) * innerWallLength;
-			float next_mm_y = (c->next->getY() + 0.5f) * innerWallLength;
+			// // Target: centre of the next waypoint cell in mm
+			// float next_mm_x = (c->next->getX() + 0.5f) * innerWallLength;
+			// float next_mm_y = (c->next->getY() + 0.5f) * innerWallLength;
 
-			// Error = setpoint - measurement (positive error → tilt toward target)
-			float error_x = next_mm_x - static_cast<float>(pos.mmX);
-			float error_y = next_mm_y - static_cast<float>(pos.mmY);
+			// // Error = setpoint - measurement (positive error → tilt toward target)
+			// float error_x = next_mm_x - static_cast<float>(pos.mmX);
+			// float error_y = next_mm_y - static_cast<float>(pos.mmY);
 
 			// Measure actual elapsed time in ms for correct PID integration
 			auto now = std::chrono::steady_clock::now();
@@ -227,11 +252,11 @@ int main(int argc, char* argv[]) {
 			if (dt_ms < 1) dt_ms = 1;
 			last_time = now;
 
-			float out_x = -1 * pid_x.calculate(error_x, dt_ms);
+			float out_x = pid_x.calculate(error_x, dt_ms);
 			float out_y = pid_y.calculate(error_y, dt_ms);
 
 			std::cout << "Px: " << pid_y.kp << std::endl;
-			std::cout << "Ex: " << out_y << std::endl;
+			std::cout << "Ex: " << out_x <<  " and " << out_y << std::endl;
 			ServoMotor_Control(2, angle_to_pulse(static_cast<int>(out_x)));
 			ServoMotor_Control(3, angle_to_pulse(static_cast<int>(out_y)));
 		}
