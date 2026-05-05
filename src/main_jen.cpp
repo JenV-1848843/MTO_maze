@@ -16,7 +16,7 @@
 #include "../include/headers/wall.h"
 #include "../include/headers/ballPosition.h"
 
-#ifdef SERVO_CONTROL_ENABLED
+// #ifdef SERVO_CONTROL_ENABLED
 #include "../include/motorcontrol.h"
 #include "../include/SystemConfig.hpp"
 #endif
@@ -38,10 +38,14 @@ static int angle_to_pulse(int angle) {
 }
 
 // PID tuning — adjust these during testing
-static constexpr float PID_KP = 0.5f;
-static constexpr float PID_KI = 0.0f;
-static constexpr float PID_KD = 0.1f;
+
+// eventueel: 0.25 0.5 1.5
+static constexpr float PID_KPX = 0.9f;
+static constexpr float PID_KI = 0.8f;
+static constexpr float PID_KD = 0.9f;
 static constexpr float PID_OUTPUT_LIMIT = 30.0f;
+
+static constexpr float PID_KPY = 0.6f;
 
 int main(int argc, char* argv[]) {
 	int targetX, targetY;
@@ -77,19 +81,28 @@ int main(int argc, char* argv[]) {
 	}
 
 	// cap.set(cv::CAP_PROP_FOURCC, cv::VideoWriter::fourcc('Y', 'U', 'Y', 'C'));
-	// cap.set(cv::CAP_PROP_FRAME_WIDTH, 640);
+	// cap.set(cv::CAP_PROP_FRAME_WIDTH, c/we640);
 	// cap.set(cv::CAP_PROP_FRAME_HEIGHT, 480);
 
-	#ifdef SERVO_CONTROL_ENABLED
+	// #ifdef SERVO_CONTROL_ENABLED
 	Init_GPIO_Control();
 	Init_ServoMotor_Control();
 	ServoMotor_Control(2, angle_to_pulse(0)); // neutral
 	ServoMotor_Control(3, angle_to_pulse(0));
 
 	PIDController pid_x, pid_y;
+	pid_x.kp = PID_KPX;
+	pid_y.kp = PID_KPY;
+	pid_x.ki = pid_y.ki = PID_KI;
+	pid_x.kd = pid_y.kd = PID_KD;
 	pid_x.output_limit = pid_y.output_limit = PID_OUTPUT_LIMIT;
-	#endif
+	// #endif
 
+#define DCM2CCW 17
+#define DCM3CW 22
+#define DCM3CCW 23
+
+struct gpiod_chip *chip; 
 	std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
 	cv::Mat frame, tempFrame;
@@ -149,29 +162,29 @@ int main(int argc, char* argv[]) {
 
 		if (c == &maze.getConfig()[targetX][targetY]) {
 			std::cout << "This is the destination\n";
-			#ifdef SERVO_CONTROL_ENABLED
+			// #ifdef SERVO_CONTROL_ENABLED
 			ServoMotor_Control(2, angle_to_pulse(0));
 			ServoMotor_Control(3, angle_to_pulse(0));
 			Exit_Motor_Control();
-			#endif
+			// #endif
 			return 0;
 		} else if (!c->visited) {
 			std::cout << "Unreachable, no path to destination\n";
-			#ifdef SERVO_CONTROL_ENABLED
+			// #ifdef SERVO_CONTROL_ENABLED
 			ServoMotor_Control(2, angle_to_pulse(0));
 			ServoMotor_Control(3, angle_to_pulse(0));
 			Exit_Motor_Control();
-			#endif
+			// #endif
 			return 0;
 		}
 
 		std::cout << "Reachable! Following path:\n";
-		// std::cout << "(" << current->getX() << "," << current->getY() << ") -> ";
+		// std::cout << e"(" << current->getX() << "," << current->getY() << ") -> ";
 		double mms = maze.mmsUntilTurn(*c, &pos);
 		Direction dir = maze.directionTo(c, c->next);
 		std::cout << "moving " << mms << " mms to " << to_string(dir) << std::endl;
 
-		#ifdef SERVO_CONTROL_ENABLED
+		// #ifdef SERVO_CONTROL_ENABLED
 		if (pos.found && c->next != nullptr) {
 			// Re-read PID constants from web interface on each iteration
 			{
@@ -183,25 +196,26 @@ int main(int argc, char* argv[]) {
 			float next_mm_x = (c->next->getX() + 0.5f) * innerWallLength;
 			float next_mm_y = (c->next->getY() + 0.5f) * innerWallLength;
 
-			// Error = setpoint - measurement (positive error → tilt toward target)
-			float error_x = next_mm_x - static_cast<float>(pos.mmX);
-			float error_y = next_mm_y - static_cast<float>(pos.mmY);
+			// // Error = setpoint - measurement (positive error → tilt toward target)
+			// float error_x = next_mm_x - static_cast<float>(pos.mmX);
+			// float error_y = next_mm_y - static_cast<float>(pos.mmY);
 
 			// Measure actual elapsed time in ms for correct PID integration
 			auto now = std::chrono::steady_clock::now();
 			int dt_ms = static_cast<int>(
 				std::chrono::duration_cast<std::chrono::milliseconds>(now - last_time).count()
 			);
-			if (dt_ms < 1) dt_ms = 1;
+			// if (dt_ms < 1) dt_ms = 1;
 			last_time = now;
 
 			float out_x = pid_x.calculate(error_x, dt_ms);
 			float out_y = pid_y.calculate(error_y, dt_ms);
-
+			std::cout << "controlling servos with: " << out_x << " & " << out_y << std::endl;
 			ServoMotor_Control(2, angle_to_pulse(static_cast<int>(out_x)));
 			ServoMotor_Control(3, angle_to_pulse(static_cast<int>(out_y)));
+			std::this_thread::sleep_for(std::chrono::milliseconds(2));
 		}
-		#endif
+		// #endif
 	}
 	// Cell* c = &maze.getConfig()[pos.x][pos.y];
 
@@ -231,6 +245,7 @@ int main(int argc, char* argv[]) {
 	// 	cv::waitKey(5);
 	// }
 
+	maze.print();
 	cap.release();
 	cv::destroyAllWindows();
 
