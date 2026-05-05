@@ -1,7 +1,7 @@
 #include <cstdint>
 #pragma once
 
-constexpr uint8_t redThresholdLow = 5;
+constexpr uint8_t redThresholdLow = 15;
 constexpr uint8_t redThresholdHigh = 170;
 constexpr uint8_t orangeThresholdLow = 5;
 constexpr uint8_t orangeThresholdHigh = 30;

@@ -113,8 +113,8 @@ int main(int argc, char* argv[]) {
 		// std::cerr << "failed to capture frame" << std::endl;
 		// return -1;
 	// }
-	cv::imshow("Camera", frame);
-	cv::waitKey(0);
+	// cv::imshow("Camera", frame);
+	// cv::waitKey(0);
 	readMazeConfig(frame, maze.getConfig());
 	maze.bfs(maze.getConfig()[targetX][targetY]);
 	maze.print();
