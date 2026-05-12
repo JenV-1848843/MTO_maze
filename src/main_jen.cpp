@@ -34,7 +34,7 @@ static int angle_to_pulse(int angle) {
 	return 1000 + (angle * 1000) / 180;
 }
 
-static constexpr float PID_OUTPUT_LIMIT = 30.0f;
+static constexpr float PID_OUTPUT_LIMIT = 20.0f;
 
 int main(int argc, char* argv[]) {
 	startWebServer();
@@ -164,11 +164,11 @@ int main(int argc, char* argv[]) {
 				double error_y;
 				switch (dir) {
 				case Direction::UP:
-					error_x = -1.0;
+					error_x = 0.0;
 					error_y = -mms;
 					break;
 				case Direction::DOWN:
-					error_x = -1.0;
+					error_x = 0.0;
 					error_y = mms;
 					break;
 				case Direction::LEFT:

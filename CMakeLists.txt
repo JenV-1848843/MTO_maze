@@ -60,14 +60,14 @@ elseif(UNIX)
         ./include/headers/cell.h
         ./include/headers/config.h
         ./include/headers/direction.h
-maze snapshot
-latest · /var/www/html/maze_snapshot.jpg Maze snapshot
-loaded 13:18:59
-target cell
-X
-Y
-grid 0–7 · (0,0) = top-left
+        ./include/headers/maze.h
+        ./include/headers/position.h
+        ./include/headers/utils.h
+        ./include/headers/wall.h
+        ./include/headers/ballPosition.h
+    )
 
+    if(GPIOD_FOUND)
         list(APPEND MTO_MAZE_SOURCES src/motorcontrol.cpp)
     endif()
 
