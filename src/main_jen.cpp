@@ -155,8 +155,9 @@ int main(int argc, char* argv[]) {
 				break;
 			}
 
-			double mms = maze.mmsUntilTurn(*c, &pos);
-			Direction dir = maze.directionTo(c, c->next);
+			TurnInfo turn = maze.mmsUntilTurn(*c, &pos);
+			double mms = turn.mms;
+			Direction dir = turn.direction;
 			std::cout << "moving " << mms << " mms to " << to_string(dir) << std::endl;
 
 			if (pos.found && c->next != nullptr) {

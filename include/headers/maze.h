@@ -8,6 +8,11 @@
 #include "ballPosition.h"
 #include "direction.h"
 
+struct TurnInfo {
+    double mms;
+    Direction direction;
+};
+
 class Maze {
     public:
         Maze();
@@ -17,7 +22,7 @@ class Maze {
         void resetWalls();
         int stepsUntilTurn(Cell& from);
         Direction directionTo(Cell* from, Cell* to);
-        double mmsUntilTurn(Cell& from, BallPosition* pos);
+        TurnInfo mmsUntilTurn(Cell& from, BallPosition* pos);
         // ~Maze();
 
     private:
