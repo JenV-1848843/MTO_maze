@@ -209,12 +209,14 @@ TurnInfo Maze::mmsUntilTurn(Cell& from, BallPosition* pos) {
         return { 0.0, Direction::UP };
 
     Direction initialDir = directionTo(current, current->next);
+    Direction newDir = initialDir;
     int steps = 0;
     Cell* dest = current->next;
 
     while (current->next != nullptr) {
         Direction dir = directionTo(current, current->next);
         if (dir != initialDir)
+            newDir = dir;
             break;
         ++steps;
         dest = current->next;
@@ -227,21 +229,21 @@ TurnInfo Maze::mmsUntilTurn(Cell& from, BallPosition* pos) {
     if (initialDir == Direction::RIGHT) {
         double fromMm = pos->mmX;
         double destMm = gridToWorld(dest->getX());
-        return { destMm - fromMm, initialDir };
+        return { destMm - fromMm, newDir };
     } else if (initialDir == Direction::LEFT) {
         double fromMm = pos->mmX;
         double destMm = gridToWorld(dest->getX());
-        return { fromMm - destMm, initialDir };
+        return { fromMm - destMm, newDir };
     } else if (initialDir == Direction::DOWN) {
         double fromMm = pos->mmY;
         double destMm = gridToWorld(dest->getY());
-        return { destMm - fromMm, initialDir };
+        return { destMm - fromMm, newDir };
     } else if (initialDir == Direction::UP) {
         double fromMm = pos->mmY;
         double destMm = gridToWorld(dest->getY());
-        return { fromMm - destMm, initialDir };
+        return { fromMm - destMm, newDir };
     } else {
-        return { 0.0, initialDir };
+        return { 0.0, newDir };
     }
 }
 
