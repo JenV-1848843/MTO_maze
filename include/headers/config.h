@@ -1,11 +1,11 @@
 #include <cstdint>
 #pragma once
 
-constexpr uint8_t redThresholdLow = 15;
+constexpr uint8_t redThresholdLow = 5;
 constexpr uint8_t redThresholdHigh = 170;
 constexpr uint8_t orangeThresholdLow = 5;
 constexpr uint8_t orangeThresholdHigh = 30;
-constexpr uint8_t wallDetectionRoiDimention = 25;
+constexpr uint8_t wallDetectionRoiDimention = 20;
 constexpr uint8_t amountWallRows = 7;
 constexpr uint8_t amountWallCols = 7;
 constexpr uint8_t amountCellRows = 8;
