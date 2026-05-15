@@ -3,3 +3,4 @@ build
 jen/build
 jen/.vscode
 build/
+CMakeFiles/

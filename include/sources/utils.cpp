@@ -64,7 +64,7 @@ void readMazeConfig(
     frame.copyTo(filteredImage, orangeMask);
 
     cv::imshow("detected parts", filteredImage);
-    cv::waitKey(0);
+    // cv::waitKey(0);
 
 
 
@@ -200,7 +200,7 @@ void readMazeConfig(
 
 
     cv::imshow("innerBoard", innerBoard);
-    cv::waitKey(0);
+    // cv::waitKey(0);
 };
 
 void detectHorizontalWalls(

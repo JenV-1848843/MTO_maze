@@ -30,8 +30,8 @@ std::atomic<int>   ws_servo_angle_y{0};
 std::mutex         ws_pid_mutex;
 WsPIDParams        ws_pid_params;
 
-static int angle_to_pulse(int angle) {
-	return 1000 + (angle * 1000) / 180;
+static int angle_to_pulse(float angle, float offset = 0.0) {
+	return 1000 + ((angle - offset) * 1000) / 180;
 }
 
 static constexpr float PID_OUTPUT_LIMIT = 30.0f;
@@ -203,8 +203,8 @@ int main(int argc, char* argv[]) {
 				float out_y = pid_y.calculate(error_y, dt_ms);
 
 				std::cout << "Py: " << pid_y.kp << "  out: " << out_x << " / " << out_y << std::endl;
-				ServoMotor_Control(2, angle_to_pulse(static_cast<int>(out_x)));
-				ServoMotor_Control(3, angle_to_pulse(static_cast<int>(out_y)));
+				ServoMotor_Control(2, angle_to_pulse(out_x));
+				ServoMotor_Control(3, angle_to_pulse(out_y));
 			}
 		} // end inner loop
 
