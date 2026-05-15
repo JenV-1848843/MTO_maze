@@ -27,6 +27,8 @@ std::atomic<int>   ws_target_x{0};
 std::atomic<int>   ws_target_y{0};
 std::atomic<int>   ws_servo_angle_x{0};
 std::atomic<int>   ws_servo_angle_y{0};
+std::atomic<float> ws_servo_offset_x{0.0f};
+std::atomic<float> ws_servo_offset_y{0.0f};
 std::mutex         ws_pid_mutex;
 WsPIDParams        ws_pid_params;
 
@@ -57,8 +59,8 @@ int main(int argc, char* argv[]) {
 	Init_GPIO_Control();
 	Init_ServoMotor_Control();
 	std::cout << "Setting servos to 0" << std::endl;
-	ServoMotor_Control(2, angle_to_pulse(0));
-	ServoMotor_Control(3, angle_to_pulse(0));
+	ServoMotor_Control(2, angle_to_pulse(0.0f, ws_servo_offset_x.load()));
+	ServoMotor_Control(3, angle_to_pulse(0.0f, ws_servo_offset_y.load()));
 
 	// -----------------------------
 	// Init PID Controllers
@@ -133,8 +135,8 @@ int main(int argc, char* argv[]) {
 				std::cout << "Stop command received.\n";
 				ws_should_stop.store(false);
 				ws_is_running.store(false);
-				ServoMotor_Control(2, angle_to_pulse(0));
-				ServoMotor_Control(3, angle_to_pulse(0));
+				ServoMotor_Control(2, angle_to_pulse(0.0f, ws_servo_offset_x.load()));
+				ServoMotor_Control(3, angle_to_pulse(0.0f, ws_servo_offset_y.load()));
 				break;
 			}
 
@@ -144,14 +146,14 @@ int main(int argc, char* argv[]) {
 			if (c == &maze.getConfig()[targetX][targetY]) {
 				std::cout << "Destination reached.\n";
 				ws_is_running.store(false);
-				ServoMotor_Control(2, angle_to_pulse(0));
-				ServoMotor_Control(3, angle_to_pulse(0));
+				ServoMotor_Control(2, angle_to_pulse(0.0f, ws_servo_offset_x.load()));
+				ServoMotor_Control(3, angle_to_pulse(0.0f, ws_servo_offset_y.load()));
 				break;
 			} else if (!c->visited) {
 				std::cout << "Unreachable, no path to destination.\n";
 				ws_is_running.store(false);
-				ServoMotor_Control(2, angle_to_pulse(0));
-				ServoMotor_Control(3, angle_to_pulse(0));
+				ServoMotor_Control(2, angle_to_pulse(0.0f, ws_servo_offset_x.load()));
+				ServoMotor_Control(3, angle_to_pulse(0.0f, ws_servo_offset_y.load()));
 				break;
 			}
 
@@ -203,8 +205,8 @@ int main(int argc, char* argv[]) {
 				float out_y = pid_y.calculate(error_y, dt_ms);
 
 				std::cout << "Py: " << pid_y.kp << "  out: " << out_x << " / " << out_y << std::endl;
-				ServoMotor_Control(2, angle_to_pulse(out_x));
-				ServoMotor_Control(3, angle_to_pulse(out_y));
+				ServoMotor_Control(2, angle_to_pulse(out_x, ws_servo_offset_x.load()));
+				ServoMotor_Control(3, angle_to_pulse(out_y, ws_servo_offset_y.load()));
 			}
 		} // end inner loop
 

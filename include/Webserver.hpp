@@ -63,6 +63,8 @@ extern std::atomic<int>   ws_target_x;
 extern std::atomic<int>   ws_target_y;
 extern std::atomic<int>   ws_servo_angle_x;
 extern std::atomic<int>   ws_servo_angle_y;
+extern std::atomic<float> ws_servo_offset_x;
+extern std::atomic<float> ws_servo_offset_y;
 extern std::mutex         ws_pid_mutex;
 extern WsPIDParams        ws_pid_params;
 
@@ -263,6 +265,60 @@ static void ws_handle_request(int client_fd, const std::string& raw) {
         {
             std::lock_guard<std::mutex> lock(ws_pid_mutex);
             ws_pid_params = p;
+        }
+
+        ws_respond(client_fd, 200, "OK");
+        return;
+    }
+
+    /* ── GET /api/offset?id=N&value=f ────────────────────────
+       Updates the live servo angle offset (degrees, float).
+       The offset is added to every angle_to_pulse() call in the
+       main control loop, so changes take effect immediately on
+       the next servo write — no restart needed.
+
+       id:    2 (X axis) or 3 (Y axis)
+       value: float, the NEW cumulative offset (not a delta)
+
+       If the main loop is idle, the servo is driven to the
+       offset position right away so the user sees the effect
+       during calibration.
+    ───────────────────────────────────────────────────────── */
+    if (url.find("/api/offset") == 0) {
+        std::string sid    = ws_parse_param(url, "id");
+        std::string svalue = ws_parse_param(url, "value");
+        if (sid.empty() || svalue.empty()) {
+            ws_respond(client_fd, 400, "Missing id or value");
+            return;
+        }
+        int   id;
+        float value;
+        try { id = std::stoi(sid); value = std::stof(svalue); }
+        catch (...) {
+            ws_respond(client_fd, 400, "id must be int, value must be float");
+            return;
+        }
+        if (id != 2 && id != 3) {
+            ws_respond(client_fd, 400, "Servo id must be 2 or 3");
+            return;
+        }
+
+        if (id == 2) ws_servo_offset_x.store(value);
+        else         ws_servo_offset_y.store(value);
+
+        // When idle, drive the servo so calibration is visible.
+        if (!ws_is_running.load()) {
+            float a = value;
+            if (a < 0.0f)   a = 0.0f;
+            if (a > 180.0f) a = 180.0f;
+            int pulse = static_cast<int>(1000.0f + (a * 1000.0f) / 180.0f);
+            pulse = std::max(1000, std::min(2000, pulse));
+            #ifdef SERVO_CONTROL_ENABLED
+            ServoMotor_Control(id, pulse);
+            #else
+            std::cout << "[webserver] offset id=" << id << " value=" << value
+                      << " pulse=" << pulse << " [stub]\n";
+            #endif
         }
 
         ws_respond(client_fd, 200, "OK");

@@ -765,38 +765,40 @@
           <div class="servo-title">Servo X</div>
           <div class="servo-id">// servo id 2 · PWM channel</div>
 
-          <div class="servo-readout" id="readout-x">0</div>
-          <div class="servo-readout-label">current angle (°)</div>
+          <div class="servo-readout" id="readout-x">+0.0</div>
+          <div class="servo-readout-label">offset (°)</div>
 
           <!--
-            Step size: how many degrees each nudge press sends
+            Step size: degrees added/subtracted from the offset
             Stored in JS variable stepX; no backend involvement
           -->
           <div class="step-row">
             STEP &nbsp;
-            <button class="step-btn active" data-axis="x" data-val="1">1°</button>
-            <button class="step-btn"        data-axis="x" data-val="5">5°</button>
-            <button class="step-btn"        data-axis="x" data-val="10">10°</button>
+            <button class="step-btn active" data-axis="x" data-val="0.1">0.1°</button>
+            <button class="step-btn"        data-axis="x" data-val="0.5">0.5°</button>
+            <button class="step-btn"        data-axis="x" data-val="1">1°</button>
           </div>
 
           <div class="nudge-row">
             <!--
-              NUDGE  → GET /command?action=servo&id=2&pulse={pulse}
-                        pulse = angle_to_pulse(angle)  [1000 + angle*1000/180]
-                        C++ calls ServoMotor_Control(2, pulse) immediately
-                        Response: "OK"
+              NUDGE  → GET /api/offset?id=2&value={offset}
+                        C++ stores the float into ws_servo_offset_x atomically.
+                        The main loop reads this on every iteration and adds it
+                        to the angle before calling angle_to_pulse().
+                        When idle, the servo is driven immediately so the
+                        user sees the offset during calibration.
             -->
             <button class="btn btn-accent btn-nudge" onclick="nudge('x', -1)">◀</button>
-            <div class="center-val" id="nudge-x-deg">0°</div>
+            <div class="center-val" id="nudge-x-deg">+0.0°</div>
             <button class="btn btn-accent btn-nudge" onclick="nudge('x', +1)">▶</button>
           </div>
 
           <!--
-            RESET  → GET /command?action=servo&id=2&pulse=1500
-                      Centers servo (90°), resets local angle to 0
+            RESET  → GET /api/offset?id=2&value=0
+                      Clears the offset back to 0°
           -->
           <button class="btn btn-warn btn-full btn-reset-servo" onclick="resetServo('x', 2)">
-            ⊙ Reset to Center
+            ⊙ Reset Offset
           </button>
           <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.07em;margin-top:4px;">
             Tilts the maze board along the X axis
@@ -808,24 +810,24 @@
           <div class="servo-title">Servo Y</div>
           <div class="servo-id">// servo id 3 · PWM channel</div>
 
-          <div class="servo-readout" id="readout-y">0</div>
-          <div class="servo-readout-label">current angle (°)</div>
+          <div class="servo-readout" id="readout-y">+0.0</div>
+          <div class="servo-readout-label">offset (°)</div>
 
           <div class="step-row">
             STEP &nbsp;
-            <button class="step-btn active" data-axis="y" data-val="1">1°</button>
-            <button class="step-btn"        data-axis="y" data-val="5">5°</button>
-            <button class="step-btn"        data-axis="y" data-val="10">10°</button>
+            <button class="step-btn active" data-axis="y" data-val="0.1">0.1°</button>
+            <button class="step-btn"        data-axis="y" data-val="0.5">0.5°</button>
+            <button class="step-btn"        data-axis="y" data-val="1">1°</button>
           </div>
 
           <div class="nudge-row">
             <button class="btn btn-accent btn-nudge" onclick="nudge('y', -1)">◀</button>
-            <div class="center-val" id="nudge-y-deg">0°</div>
+            <div class="center-val" id="nudge-y-deg">+0.0°</div>
             <button class="btn btn-accent btn-nudge" onclick="nudge('y', +1)">▶</button>
           </div>
 
           <button class="btn btn-warn btn-full btn-reset-servo" onclick="resetServo('y', 3)">
-            ⊙ Reset to Center
+            ⊙ Reset Offset
           </button>
           <div style="font-family:var(--font-mono);font-size:9px;color:var(--muted);letter-spacing:0.07em;margin-top:4px;">
             Tilts the maze board along the Y axis
@@ -917,13 +919,13 @@
     let isRunning  = false;
     let backendUp  = null;
 
-    // Local servo angle tracking (degrees, integer).
-    // These mirror what we believe the hardware is at.
+    // Local servo offset tracking (degrees, float).
+    // These mirror the ws_servo_offset_{x,y} atomics in the C++ backend.
     // Reset to 0 on page load — not persisted.
-    let angleX = 0;
-    let angleY = 0;
-    let stepX  = 1;   // degrees per nudge press
-    let stepY  = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+    let stepX   = 0.1;   // degrees per nudge press
+    let stepY   = 0.1;
 
     /* ═══════════════════════════════════════════════════════════
        LOGGING
@@ -1140,7 +1142,7 @@
     document.querySelectorAll('.step-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         const axis = btn.dataset.axis;
-        const val  = parseInt(btn.dataset.val, 10);
+        const val  = parseFloat(btn.dataset.val);
         // Deactivate siblings for this axis
         document.querySelectorAll(`.step-btn[data-axis="${axis}"]`).forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
@@ -1149,61 +1151,57 @@
       });
     });
 
-    function angleToPulse(angle) {
-      // Mirrors the C++ angle_to_pulse() in main_jen.cpp:
-      // 1000 + (angle * 1000) / 180
-      // angle is clamped to [0, 180]
-      const clamped = Math.max(0, Math.min(180, angle));
-      return Math.round(1000 + (clamped * 1000) / 180);
+    function formatOffset(v) {
+      // One decimal, signed, no thin-space surprises.
+      const sign = v >= 0 ? '+' : '-';
+      return sign + Math.abs(v).toFixed(1);
     }
 
-    function updateReadout(axis, angle) {
-      document.getElementById(`readout-${axis}`).textContent = angle;
-      document.getElementById(`nudge-${axis}-deg`).textContent = `${angle}°`;
+    function updateReadout(axis, offset) {
+      document.getElementById(`readout-${axis}`).textContent = formatOffset(offset);
+      document.getElementById(`nudge-${axis}-deg`).textContent = `${formatOffset(offset)}°`;
+    }
+
+    async function pushOffset(axis, servoId, newOffset, label) {
+      /*
+        GET /api/offset?id={servoId}&value={offset}
+        C++ stores the float in ws_servo_offset_{x,y} atomically.
+        The main loop reads it on every iteration and adds it to the
+        commanded angle before calling angle_to_pulse(). When the loop
+        is idle, the backend also drives the servo immediately so the
+        operator can see the offset during calibration.
+      */
+      const res = await apiFetch(
+        `${BACKEND}/api/offset?id=${servoId}&value=${newOffset.toFixed(2)}`,
+        label
+      );
+      if (res !== null) {
+        if (axis === 'x') offsetX = newOffset;
+        else              offsetY = newOffset;
+        updateReadout(axis, newOffset);
+      }
     }
 
     async function nudge(axis, direction) {
-      /*
-        direction: +1 or -1
-        GET /command?action=servo&id={servoId}&pulse={pulse}
-        C++ must:
-          1. Parse id (2 or 3) and pulse from query string
-          2. Call ServoMotor_Control(id, pulse) immediately
-          3. Return "OK"
-
-        Servo id mapping: X → 2, Y → 3  (from main_jen.cpp)
-        Angle is clamped to [0, 180] before converting to pulse.
-      */
+      // direction: +1 or -1.  Clamp to a sensible offset range.
       const step    = axis === 'x' ? stepX : stepY;
       const servoId = axis === 'x' ? 2 : 3;
+      const current = axis === 'x' ? offsetX : offsetY;
 
-      let newAngle = (axis === 'x' ? angleX : angleY) + direction * step;
-      newAngle = Math.max(0, Math.min(180, newAngle));
+      let newOffset = current + direction * step;
+      // Guardrail: keep offsets in [-45, 45] so they can't push the
+      // servo past its mechanical range when combined with PID output.
+      newOffset = Math.max(-45, Math.min(45, newOffset));
+      // Snap to 0.1° grid to avoid float drift from repeated additions
+      newOffset = Math.round(newOffset * 10) / 10;
 
-      const pulse = angleToPulse(newAngle);
-      const res   = await apiFetch(
-        `${BACKEND}/command?action=servo&id=${servoId}&pulse=${pulse}`,
-        `Servo ${axis.toUpperCase()} nudge → ${newAngle}°`
-      );
-
-      if (res !== null) {
-        if (axis === 'x') angleX = newAngle;
-        else              angleY = newAngle;
-        updateReadout(axis, newAngle);
-      }
+      await pushOffset(axis, servoId, newOffset,
+        `Servo ${axis.toUpperCase()} offset → ${formatOffset(newOffset)}°`);
     }
 
     async function resetServo(axis, servoId) {
-      // Center pulse = 1500 µs = 90°
-      const res = await apiFetch(
-        `${BACKEND}/command?action=servo&id=${servoId}&pulse=1500`,
-        `Servo ${axis.toUpperCase()} → center`
-      );
-      if (res !== null) {
-        if (axis === 'x') angleX = 90;
-        else              angleY = 90;
-        updateReadout(axis, 90);
-      }
+      await pushOffset(axis, servoId, 0,
+        `Servo ${axis.toUpperCase()} offset reset`);
     }
 
     /* ═══════════════════════════════════════════════════════════
