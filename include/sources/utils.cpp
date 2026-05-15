@@ -8,200 +8,179 @@
 // Order points of a bounding rectangle: top-left, top-right, bottom-right, bottom-left
 std::vector<cv::Point2f> orderPoints(const std::vector<cv::Point>& pts)
 {
-    std::vector<cv::Point2f> rect(4);
-
     std::vector<cv::Point2f> ptsf;
     for (auto& p : pts)
-        ptsf.push_back(cv::Point2f(p.x, p.y));
+        ptsf.push_back(cv::Point2f((float)p.x, (float)p.y));
 
-    // sum and diff
-    std::vector<float> sum, diff;
-    for (auto& p : ptsf)
-    {
-        sum.push_back(p.x + p.y);
-        diff.push_back(p.y - p.x);
+    // Find centroid
+    cv::Point2f center(0, 0);
+    for (auto& p : ptsf) center += p;
+    center *= (1.0f / ptsf.size());
+
+    // Sort by angle from centroid: TL, TR, BR, BL (clockwise from top-left)
+    std::sort(ptsf.begin(), ptsf.end(), [&center](const cv::Point2f& a, const cv::Point2f& b) {
+        return std::atan2(a.y - center.y, a.x - center.x)
+             < std::atan2(b.y - center.y, b.x - center.x);
+    });
+
+    // atan2 gives angles in [-pi, pi], starting from the right (east), going CCW.
+    // Rotate so TL comes first: find the point closest to top-left (min x+y)
+    int tlIdx = 0;
+    float minSum = std::numeric_limits<float>::max();
+    for (int i = 0; i < (int)ptsf.size(); i++) {
+        float s = ptsf[i].x + ptsf[i].y;
+        if (s < minSum) { minSum = s; tlIdx = i; }
     }
 
-    rect[0] = ptsf[min_element(sum.begin(), sum.end()) - sum.begin()]; // TL
-    rect[2] = ptsf[max_element(sum.begin(), sum.end()) - sum.begin()]; // BR
-    rect[1] = ptsf[min_element(diff.begin(), diff.end()) - diff.begin()]; // TR
-    rect[3] = ptsf[max_element(diff.begin(), diff.end()) - diff.begin()]; // BL
+    // Rotate vector so TL is first, then order is TL, TR, BR, BL clockwise
+    std::vector<cv::Point2f> rect(4);
+    for (int i = 0; i < 4; i++)
+        rect[i] = ptsf[(tlIdx + i) % 4];
 
     return rect;
-};
+}
 
 void readMazeConfig(
     cv::Mat frame,
     std::array<std::array<Cell, amountCellRows>, amountCellCols>& config
 ) {
-    cv::Mat hsv; // frame
-    cv::Mat redMaskLow, redMaskHigh, redMask, orangeMask; // masks
-
-    /*
-    HSV = Hue (actual color), Saturation (intensity), Value (brightness)
-    Hue is represented by a "color wheel" in which the color of a pixel can be represented by an angle on the wheel
-    OpenCV normalizes these angles from 0-360 to 0-180
-    */
+    cv::Mat hsv;
     cv::cvtColor(frame, hsv, cv::COLOR_BGR2HSV);
 
-    cv::inRange(hsv, cv::Scalar(0, 100, 100), cv::Scalar(redThresholdLow, 255, 255), redMaskLow); // Only red pixels are kept from the image
-    cv::inRange(hsv, cv::Scalar(redThresholdHigh,100,100), cv::Scalar(180,255,255), redMaskHigh); // Only red pixels are kept from the image
-    cv::inRange(hsv, cv::Scalar(orangeThresholdLow, 100, 210), cv::Scalar(orangeThresholdHigh, 255, 255), orangeMask); // Only orange pixels are kept from the image
-
-
-    /*
-    Bitwise or --> if pixels are classified as "red" by any of the two masks, add them to the entire mask.
-    This is needed because red in the OpenCV Hue "color wheel" is a the beginning and at the end of the wheel.
-    */
+    // --- Red mask (for border detection) ---
+    cv::Mat redMaskLow, redMaskHigh, redMask;
+    cv::inRange(hsv, cv::Scalar(0, 100, 100),           cv::Scalar(redThresholdLow, 255, 255),  redMaskLow);
+    cv::inRange(hsv, cv::Scalar(redThresholdHigh,100,100), cv::Scalar(180, 255, 255),           redMaskHigh);
     redMask = redMaskLow | redMaskHigh;
 
-    cv::Mat redPixels, orangePixels, filteredImage;
+    // --- Orange mask (for walls) ---
+    cv::Mat orangeMask;
+    cv::inRange(hsv, cv::Scalar(orangeThresholdLow, 100, 210),
+                     cv::Scalar(orangeThresholdHigh, 255, 255), orangeMask);
 
-    frame.copyTo(redPixels, redMask);
-    frame.copyTo(orangePixels, orangeMask);
+    // Use the ORIGINAL frame (not filtered) for the perspective warp —
+    // this gives a much more stable and complete image to warp.
+    // We still detect the border using the red mask.
 
-    frame.copyTo(filteredImage, redMask);
-    frame.copyTo(filteredImage, orangeMask);
+    // Clean up red mask before finding contours
+    cv::morphologyEx(redMask, redMask, cv::MORPH_CLOSE,
+                     cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5,5)));
 
-    cv::imshow("detected parts", filteredImage);
-    // cv::waitKey(0);
-
-
-
-    // find the contours of the red square
+    // Find border contours in red mask
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(redMask, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
 
-    if (contours.empty())
-    {
+    if (contours.empty()) {
         std::cout << "No contours found\n";
+        return;
     }
 
-    // assume the largest found contour is the red square
+    // Largest contour = red border
     int largestIdx = 0;
     double maxArea = 0;
-    for (int i = 0; i < contours.size(); i++)
-    {
-        double area = contourArea(contours[i]);
-        if (area > maxArea)
-        {
-            maxArea = area;
-            largestIdx = i;
-        }
+    for (int i = 0; i < (int)contours.size(); i++) {
+        double area = cv::contourArea(contours[i]);
+        if (area > maxArea) { maxArea = area; largestIdx = i; }
     }
 
     std::vector<cv::Point> cnt = contours[largestIdx];
 
-    // Approximate polygon
+    // Approximate to polygon — try a few epsilons until we get 4 corners
     std::vector<cv::Point> approx;
-    double epsilon = 0.02 * arcLength(cnt, true);
-    approxPolyDP(cnt, approx, epsilon, true);
-
-    if (approx.size() != 4)
-    {
-        std::cout << "Did not find 4 corners, found: " << approx.size() << std::endl;
+    for (double epsFactor = 0.01; epsFactor <= 0.1; epsFactor += 0.005) {
+        double epsilon = epsFactor * cv::arcLength(cnt, true);
+        cv::approxPolyDP(cnt, approx, epsilon, true);
+        if (approx.size() == 4) break;
     }
 
-    // Order points
+    if (approx.size() != 4) {
+        std::cout << "Could not find 4 corners, found: " << approx.size() << std::endl;
+        return;
+    }
+
     std::vector<cv::Point2f> srcPts = orderPoints(approx);
 
-    // Destination rectangle
-    int width = 400;
-    int height = 400;
+    // Compute output size from the actual contour dimensions to preserve aspect ratio
+    float widthA  = cv::norm(srcPts[1] - srcPts[0]);
+    float widthB  = cv::norm(srcPts[2] - srcPts[3]);
+    float heightA = cv::norm(srcPts[3] - srcPts[0]);
+    float heightB = cv::norm(srcPts[2] - srcPts[1]);
+    int warpWidth  = (int)std::max(widthA,  widthB);
+    int warpHeight = (int)std::max(heightA, heightB);
+
     std::vector<cv::Point2f> dstPts = {
-        cv::Point2f(0,0),
-        cv::Point2f(width-1, 0),
-        cv::Point2f(width-1, height-1),
-        cv::Point2f(0, height-1)
+        cv::Point2f(0,            0),
+        cv::Point2f(warpWidth-1,  0),
+        cv::Point2f(warpWidth-1,  warpHeight-1),
+        cv::Point2f(0,            warpHeight-1)
     };
 
-    // Perspective transform
-    cv::Mat M = getPerspectiveTransform(srcPts, dstPts);
+    // Warp the ORIGINAL frame — avoids gaps from sparse filtered image
+    cv::Mat M = cv::getPerspectiveTransform(srcPts, dstPts);
     cv::Mat warped;
-    warpPerspective(filteredImage, warped, M, cv::Size(width, height));
+    cv::warpPerspective(frame, warped, M, cv::Size(warpWidth, warpHeight));
 
-    // crop the red border
-    cv::Mat borderlessHsv;
-    cv::cvtColor(warped, borderlessHsv, cv::COLOR_BGR2HSV);
+    // --- Find and crop the red border from the warped original frame ---
+    cv::Mat warpedHsv;
+    cv::cvtColor(warped, warpedHsv, cv::COLOR_BGR2HSV);
 
-    cv::Mat mask1Crop, mask2Crop, redMaskCrop;
-    cv::inRange(borderlessHsv, cv::Scalar(0,100,100), cv::Scalar(10,255,255), mask1Crop);
-    cv::inRange(borderlessHsv, cv::Scalar(160,100,100), cv::Scalar(180,255,255), mask2Crop);
-    redMaskCrop = mask1Crop | mask2Crop;
+    cv::Mat warpedRedLow, warpedRedHigh, warpedRedMask;
+    cv::inRange(warpedHsv, cv::Scalar(0,100,100),            cv::Scalar(redThresholdLow,255,255),  warpedRedLow);
+    cv::inRange(warpedHsv, cv::Scalar(redThresholdHigh,100,100), cv::Scalar(180,255,255),          warpedRedHigh);
+    warpedRedMask = warpedRedLow | warpedRedHigh;
 
-    // clean up noise
-    cv::morphologyEx(redMaskCrop, redMaskCrop, cv::MORPH_CLOSE, cv::Mat(), cv::Point(-1,-1), 2);
-
+    cv::morphologyEx(warpedRedMask, warpedRedMask, cv::MORPH_CLOSE,
+                     cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7,7)));
 
     std::vector<std::vector<cv::Point>> cropContours;
-    cv::findContours(redMaskCrop, cropContours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+    cv::findContours(warpedRedMask, cropContours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
+    if (cropContours.empty()) {
+        std::cout << "Could not find red border in warped image\n";
+        return;
+    }
 
     int largestIdxCrop = 0;
     double maxAreaCrop = 0;
-
-    for (int i = 0; i < cropContours.size(); i++)
-    {
-        double cropArea = cv::contourArea(cropContours[i]);
-        if (cropArea > maxAreaCrop)
-        {
-            maxAreaCrop = cropArea;
-            largestIdxCrop = i;
-        }
+    for (int i = 0; i < (int)cropContours.size(); i++) {
+        double a = cv::contourArea(cropContours[i]);
+        if (a > maxAreaCrop) { maxAreaCrop = a; largestIdxCrop = i; }
     }
 
     cv::Rect redRectCrop = cv::boundingRect(cropContours[largestIdxCrop]);
 
-
     cv::Rect innerROI(
         redRectCrop.x + cropMargin,
         redRectCrop.y + cropMargin,
-        redRectCrop.width - 2*cropMargin,
-        redRectCrop.height - 2*cropMargin
+        redRectCrop.width  - 2 * cropMargin,
+        redRectCrop.height - 2 * cropMargin
     );
-
-    // safety clamp
     innerROI &= cv::Rect(0, 0, warped.cols, warped.rows);
 
     cv::Mat innerBoard = warped(innerROI).clone();
 
-    int innerBoardWidth = innerBoard.size().width;
-    int innerBoardHeight = innerBoard.size().height;
-    int cellWidth = innerBoardWidth/8;
-    int cellHeight = innerBoardHeight/8;
-    
-    /*
-    Wall detection
-    */
+    // --- Wall detection (unchanged logic, same inputs) ---
+    int innerBoardWidth  = innerBoard.cols;
+    int innerBoardHeight = innerBoard.rows;
+    int cellWidth  = innerBoardWidth  / 8;
+    int cellHeight = innerBoardHeight / 8;
+
     cv::Mat wallHsv;
     cv::cvtColor(innerBoard, wallHsv, cv::COLOR_BGR2HSV);
 
     cv::Mat wallMask;
-    cv::inRange(wallHsv, cv::Scalar(orangeThresholdLow, 100, 100), cv::Scalar(orangeThresholdHigh, 255, 255), wallMask);//Only orange pixels are kept from the image
+    cv::inRange(wallHsv,
+                cv::Scalar(orangeThresholdLow,  100, 100),
+                cv::Scalar(orangeThresholdHigh, 255, 255),
+                wallMask);
 
-    detectHorizontalWalls(
-        config,
-        innerBoardWidth,
-        innerBoardHeight,
-        cellWidth,
-        cellHeight,
-        innerBoard,
-        wallMask
-    );
-
-    detectVerticalWalls(
-        config,
-        innerBoardWidth,
-        innerBoardHeight,
-        cellWidth,
-        cellHeight,
-        innerBoard,
-        wallMask
-    );
-
+    detectHorizontalWalls(config, innerBoardWidth, innerBoardHeight,
+                          cellWidth, cellHeight, innerBoard, wallMask);
+    detectVerticalWalls  (config, innerBoardWidth, innerBoardHeight,
+                          cellWidth, cellHeight, innerBoard, wallMask);
 
     cv::imshow("innerBoard", innerBoard);
-    // cv::waitKey(0);
-};
+}
 
 void detectHorizontalWalls(
     std::array<std::array<Cell, amountCellRows>, amountCellCols>& config,

@@ -99,6 +99,8 @@ int main(int argc, char* argv[]) {
 		// Wait for start command from web interface
 		while (!ws_should_start.load()) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			ServoMotor_Control(2, angle_to_pulse(0.0f, ws_servo_offset_x.load()));
+			ServoMotor_Control(3, angle_to_pulse(0.0f, ws_servo_offset_y.load()));
 		}
 		ws_should_start.store(false);
 		ws_is_running.store(true);
