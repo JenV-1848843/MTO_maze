@@ -95,7 +95,7 @@ sudo apt install -y \
 The project requires OpenCV built with GStreamer support (for the Pi Camera pipeline). The prebuilt apt package does **not** include GStreamer — you must build from source.
 
 > [!CAUTION]
-> **Danger:** If the steps shown below do not work for you, a tutorial on how to install and build OpenCV on your system can be found at https://docs.opencv.org/3.4/d7/d9f/tutorial_linux_install.html
+> If the steps shown below do not work for you, a tutorial on how to install and build OpenCV on your system can be found at https://docs.opencv.org/3.4/d7/d9f/tutorial_linux_install.html
 
 ### 1. Install OpenCV build dependencies
 
@@ -240,12 +240,7 @@ cd ~/MTO_maze
 sudo ./build/MTO_maze
 ```
 
-You will be prompted to enter the target maze cell:
-
-```
-Enter target X: 3
-Enter target Y: 4
-```
+You can use the web interface to enter a destination cell
 
 The camera will open, detect the maze layout, find the ball, and begin navigating.
 
@@ -262,6 +257,9 @@ Once `webApp` is running, open a browser on any device **on the same local netwo
 ```
 http://<raspberry-pi-ip>:8080
 ```
+
+> [!CAUTION]
+> If the interface cannot be found on port 8080, try port 80 instead.
 
 To find your Pi's IP address:
 
@@ -295,38 +293,6 @@ The interface serves `index.html` from the project root and exposes two buttons:
 
 ---
 
-## Project Structure
-
-```
-MTO_maze/
-├── src/
-│   ├── webBasedMain.cpp      # webApp entry point (IMU, servos, web server)
-│   ├── main_jen.cpp          # MTO_maze entry point (OpenCV, BFS, PID)
-│   ├── motorcontrol.cpp      # GPIO PWM servo control (Pi only)
-│   └── pi2c.cpp              # I2C communication with MPU-6050
-├── include/
-│   ├── webcontrol.hpp        # Async HTTP server, serves index.html on port 8080
-│   ├── SystemConfig.hpp      # Shared state: mode, PID params, offsets (thread-safe)
-│   ├── motorcontrol.h
-│   ├── rpi_pwm.h
-│   ├── pi2c.h
-│   ├── headers/
-│   │   ├── config.h          # Maze dimensions and constants
-│   │   ├── maze.h / maze.cpp # BFS maze solver
-│   │   ├── cell.h / cell.cpp # Maze cell representation
-│   │   ├── utils.h / utils.cpp
-│   │   ├── ballPosition.h    # OpenCV ball tracking
-│   │   ├── wall.h
-│   │   ├── position.h
-│   │   └── direction.h
-│   └── sources/              # Implementations for headers above
-├── index.html                # Web UI (Start / Stop buttons)
-├── CMakeLists.txt
-└── README.md
-```
-
----
-
 ## Troubleshooting
 
 **Camera fails to open**
@@ -342,12 +308,19 @@ Then verify the pipeline works independently:
 libcamera-hello
 ```
 
+> [!CAUTION]
+> This program expects the camera to be attached to the ribbon connector with index 1.
+
+> [!CAUTION]
+> You **MUST** attach the camera module to the ribbon connector before booting the RPI. If you did not, you must reboot the RPI. Otherwise the camera module will not be detected by the RPI.
+
 **OpenCV not found during CMake**
 
 The CMakeLists.txt looks for OpenCV at `~/opencv/build`. If you installed to a different path, update this line in `CMakeLists.txt`:
 ```cmake
 set(OpenCV_DIR ~/opencv/build)
 ```
+If problems persist, try using an absolute path to the OpenCV build folder instead of a relative one.
 
 **Servo channels not responding**
 
@@ -362,14 +335,3 @@ Confirm `libgpiod` was found during CMake (`SERVO_CONTROL_ENABLED` must be defin
   ```bash
   sudo ufw allow 8080
   ```
-
-**I2C device not found (IMU)**
-
-Check that the MPU-6050 is detected:
-```bash
-sudo i2cdetect -y 1
-```
-You should see `68` in the grid. If not, check wiring (SDA → Pin 3, SCL → Pin 5) and enable I2C:
-```bash
-sudo raspi-config   # Interface Options → I2C → Enable
-```
