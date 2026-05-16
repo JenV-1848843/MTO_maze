@@ -27,13 +27,13 @@ A Raspberry Pi–based autonomous maze-solving system that uses a camera, OpenCV
 ┌─────────────────────────────────────────────────┐
 │                  Raspberry Pi                   │
 │                                                 │
-│  ┌─────────────┐     ┌─────────────────────┐   │
-│  │  webApp     │     │  MTO_maze           │   │
-│  │  (port 8080)│     │  (OpenCV + PID)     │   │
-│  │             │     │                     │   │
-│  │  index.html │     │  Camera → BFS path  │   │
+│  ┌─────────────┐     ┌─────────────────────┐    │
+│  │  webApp     │     │  MTO_maze           │    │
+│  │  (port 8080)│     │  (OpenCV + PID)     │    │
+│  │             │     │                     │    │
+│  │  index.html │     │  Camera → BFS path  │    │
 │  │  Start/Stop │────▶│  Servo X / Servo Y  │   │
-│  └─────────────┘     └─────────────────────┘   │
+│  └─────────────┘     └─────────────────────┘    │
 │         ▲                      │                │
 │         │                      ▼                │
 │    Browser on             GPIO (gpiod)          │
@@ -54,7 +54,6 @@ Two executables are built:
 
 - Raspberry Pi 4 (or 3B+) running Raspberry Pi OS (Debian-based)
 - Pi Camera Module (libcamera-compatible)
-- MPU-6050 IMU (connected via I2C, address `0x68`)
 - 2× PWM servo motors (channels 2 and 3)
 - Physical maze platform with ball
 
@@ -87,12 +86,15 @@ sudo apt install -y \
 ```
 
 > **Note:** `libgpiod-dev` is required for servo motor control. Without it, `MTO_maze` will still build but servo output will be disabled.
+> **Note:** `python` is needed only for testing the camera module.
 
 ---
 
 ## Build OpenCV from Source
 
 The project requires OpenCV built with GStreamer support (for the Pi Camera pipeline). The prebuilt apt package does **not** include GStreamer — you must build from source.
+
+> **Danger:** If the steps shown below do not work for you, a tutorial on how to install and build OpenCV on your system can be found at https://docs.opencv.org/3.4/d7/d9f/tutorial_linux_install.html
 
 ### 1. Install OpenCV build dependencies
 
