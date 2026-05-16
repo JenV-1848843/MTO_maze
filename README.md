@@ -94,6 +94,7 @@ sudo apt install -y \
 
 The project requires OpenCV built with GStreamer support (for the Pi Camera pipeline). The prebuilt apt package does **not** include GStreamer — you must build from source.
 
+> [!CAUTION]
 > **Danger:** If the steps shown below do not work for you, a tutorial on how to install and build OpenCV on your system can be found at https://docs.opencv.org/3.4/d7/d9f/tutorial_linux_install.html
 
 ### 1. Install OpenCV build dependencies
